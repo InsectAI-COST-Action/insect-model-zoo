@@ -201,16 +201,20 @@ Stop the UI with **Ctrl+C** in the terminal.
 with a QR code to scan with a phone, so colleagues can try the zoo in their browser, running on your computer.
 Anyone with the link can use it, so only share it with people you trust.
 
-- By default the link comes from Gradio (`https://….gradio.live`, lasts up to a week or until you stop). Gradio
-  downloads a small tunnel program for this (`frpc`), and **antivirus software often deletes it** (Windows Defender
-  does on many work PCs), so the link fails with *"Could not create share link"* even though you have internet.
-- The way around it: install Cloudflare's free tunnel program once. When it is installed, the zoo uses it instead
-  (`https://….trycloudflare.com`, lasts until you stop, no account needed). Then open a new terminal:
+- The link comes from Gradio (`https://….gradio.live`) and lasts up to a week, or until you stop the zoo.
+- **Link fails although you have internet?** Gradio downloads a small tunnel program for the link (`frpc`), and
+  **antivirus software often deletes it** (Windows Defender does on many work PCs; it flags `frpc` because attackers
+  use the same kind of tunnel tool). The terminal then says so and shows the fix: allow Gradio's `frpc` folder
+  once. On Windows (needs admin rights; on a work PC, IT may have to do it): *Windows Security → Virus & threat
+  protection → Manage settings → Exclusions → Add an exclusion → Folder* and pick
+  `%USERPROFILE%\.cache\huggingface\gradio\frpc`, or in a PowerShell opened as administrator:
 
   ```powershell
-  winget install --id Cloudflare.cloudflared     # Windows (macOS: brew install cloudflared)
+  Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cache\huggingface\gradio\frpc"
   ```
 
+  If the terminal says the link *server* could not be reached, the network blocks it (common on work and campus
+  networks): try another network, e.g. a phone hotspot.
 - Only for people nearby: `python main.py --lan` (or `LAN = True`) prints a link and QR code for phones and PCs on
   the **same network**. If Windows asks, allow Python on private networks. Guest and campus Wi-Fi (e.g. eduroam)
   often block device-to-device traffic; a phone hotspot usually works.
@@ -247,7 +251,7 @@ python main.py --help                                         # all options + th
 | `--check` | | hardware report: GPU, RAM, which models fit | |
 | `--download MODEL` | | only download weights (`all` = every model) | |
 | `--ui` | | open the UI, e.g. `python main.py --ui -m flatbug-s` | |
-| `--share` | | also create a public link to the UI that others can open (Cloudflare if installed, else Gradio) | off |
+| `--share` | | also create a public link to the UI (`https://….gradio.live`, lasts up to a week) that others can open | off |
 | `--lan` | | also let phones / PCs on the same network open the UI (link + QR code in the terminal) | off |
 | `--help` | `-h` | help | |
 
@@ -270,12 +274,12 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
-SHARE = False                            # True = the UI also gets a public link + QR code that others can open; anyone
-                                         # with the link can use the zoo on this computer. Uses Cloudflare's cloudflared
-                                         # if installed (recommended, see README "Share it"), else Gradio's link.
-                                         # Link fails? Install cloudflared, or use LAN = True below instead
-LAN = False                              # True = link + QR code for phones / PCs on the SAME network (Wi-Fi) only;
-                                         # needs no cloudflared (guest / campus Wi-Fi may block it: use a hotspot)
+SHARE = False                            # True = the UI also gets a public link + QR code (https://....gradio.live) that
+                                         # others can open; anyone with the link can use the zoo on this computer.
+                                         # Link fails? The terminal says why and how to fix it (often: antivirus),
+                                         # or use LAN = True below instead
+LAN = False                              # True = link + QR code for phones / PCs on the SAME network (Wi-Fi) only
+                                         # (guest / campus Wi-Fi may block it: use a phone hotspot)
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 HF_TOKEN = ""

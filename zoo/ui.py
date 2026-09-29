@@ -4,14 +4,12 @@ Started by `python main.py`.
 Models with several sizes show up once in the lists (e.g. "flat-bug"); picking one shows its size buttons.
 """
 
-import atexit
 import base64
+import contextlib
+import io
 import os
-import queue
-import re
-import shutil
 import socket
-import subprocess
+import sys
 import threading
 from collections import Counter
 
@@ -24,6 +22,7 @@ os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statist
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DETECT = "Detect"
+STARTING = "Starting ... (please wait)"
 NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
@@ -214,7 +213,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
     def run(det_name, cls_name, thr, text, classes_text, image_path):
         """The Detect button itself shows what is going on (download MB, loading, running) until the result is in."""
+        ready = gr.update(value=DETECT, interactive=True)
         if not image_path:
+            yield gr.update(), ready
             raise gr.Error("Add an image first.")
         card, cls = get_model(det_name), (CLASSIFIERS.get(cls_name) if cls_name else None)
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
@@ -222,6 +223,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         if names and cls and cls.classes:
             names, problems = clean_latin_names(names)             # 'apis' -> 'Apis'
         if problems:
+            yield gr.update(), ready
             raise gr.Error(" ".join(problems), title="Check the names")
         warnings, result = [], {}
         status = {"text": "Loading %s ... (please wait)" % display_name(card)}
@@ -264,7 +266,6 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 yield gr.update(), gr.update(value=shown, interactive=False)
             worker.join(0.25)
 
-        ready = gr.update(value=DETECT, interactive=True)
         error = result.get("error")
         if error is not None:
             yield gr.update(), ready
@@ -320,6 +321,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         run_btn.click(run, inputs, [image_out, run_btn], show_progress="hidden")
         text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
         classes_box.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
+        for trigger in (run_btn.click, text.submit, classes_box.submit):   # instant, in the browser
+            trigger(None, None, run_btn, js="() => '%s'" % STARTING)
         demo.load(lambda d, c: gated_note(group_default(d, MODELS), cls_of(c)), [det_family, cls_family], gated_md)
         demo.load(hardware_notes)
     return demo
@@ -374,61 +377,40 @@ def lan_address():
         s.close()
 
 
-CLOUDFLARED_PATHS = [r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
-                     r"C:\Program Files\cloudflared\cloudflared.exe"]
-
-
-def find_cloudflared():
-    """Cloudflare's tunnel program, if installed (winget / brew / apt put it on PATH; winget's folder is also checked
-    because PATH only updates in a new terminal)."""
-    return shutil.which("cloudflared") or next((p for p in CLOUDFLARED_PATHS if os.path.isfile(p)), None)
-
-
-def cloudflare_link(port, exe, wait=40):
-    """Public link through a Cloudflare quick tunnel (https://....trycloudflare.com, no account needed).
-    The tunnel runs while the zoo runs. None if no link came within `wait` seconds."""
-    proc = subprocess.Popen([exe, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:%d" % port],
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                            text=True, encoding="utf-8", errors="replace")
-    atexit.register(proc.terminate)
-    found = queue.Queue()
-
-    def read_log():                              # keep reading, or cloudflared stalls once the pipe is full
-        for line in proc.stderr:
-            m = re.search(r"https://(?!api\.)[-a-z0-9]+\.trycloudflare\.com", line)
-            if m:
-                found.put(m.group(0))
-        found.put(None)
-
-    threading.Thread(target=read_log, daemon=True).start()
-    try:
-        url = found.get(timeout=wait)
-    except queue.Empty:
-        url = None
-    if not url:
-        proc.terminate()
-    return url
-
-
 def share_failed_help():
-    """Why Gradio's public link failed, and what to do instead."""
+    """Why Gradio's public link failed and how to fix it, in plain words (Gradio itself only says: check your
+    internet, which is rarely the problem)."""
+    lan = "  Meanwhile, for phones / PCs on the same network: LAN = True at the top of main.py (or --lan)."
     try:
-        from gradio.tunneling import BINARY_PATH
-        frpc_missing = not os.path.exists(BINARY_PATH)
+        from gradio.tunneling import BINARY_FOLDER, BINARY_PATH, BINARY_URL
     except Exception:
-        frpc_missing = False
-    if frpc_missing:
-        why = ("Gradio's link program (frpc) is gone: an antivirus (e.g. Windows Defender, common on work PCs)\n"
-               "  most likely deleted it right after the download, or the download failed (no internet).\n"
-               "  Each new try downloads it again and gets flagged again.")
+        return "Public link: could not be created.\n" + lan
+    if os.path.exists(BINARY_PATH):
+        return ("Public link: could not be created. Gradio's link server could not be reached: a firewall or proxy\n"
+                "  blocks it (common on work and campus networks), or it is down (https://status.gradio.app).\n"
+                "  To fix it: try another network (e.g. a phone hotspot), or ask IT to allow Gradio share links.\n"
+                + lan)
+    try:
+        import requests
+        requests.head(BINARY_URL, timeout=10).raise_for_status()
+    except Exception:
+        return ("Public link: could not be created. Gradio could not download its small tunnel program (frpc):\n"
+                "  no internet, or a firewall / proxy blocks %s\n%s" % (BINARY_URL, lan))
+    folder = str(BINARY_FOLDER)
+    if sys.platform == "win32":
+        fix = ("  To fix it once (needs admin rights; on a work PC, IT may have to do it), add this folder as an\n"
+               "  exclusion in Windows Security > Virus & threat protection > Manage settings > Exclusions >\n"
+               "  Add an exclusion > Folder:\n"
+               "      %s\n"
+               "  or run this in a PowerShell opened as administrator:\n"
+               "      Add-MpPreference -ExclusionPath \"%s\"\n"
+               "  Then start the zoo again." % (folder, folder))
     else:
-        why = ("The Gradio link server could not be reached (a firewall / proxy blocks it, or it is down:\n"
-               "  https://status.gradio.app).")
-    return ("Public link: could not be created. %s\n"
-            "  Ways around it:\n"
-            "  - install Cloudflare's free tunnel program once, then the zoo uses that instead (see README):\n"
-            "      Windows: winget install --id Cloudflare.cloudflared    macOS: brew install cloudflared\n"
-            "  - or LAN = True at the top of main.py (or --lan): a link for phones / PCs on the same network" % why)
+        fix = ("  To fix it: allow this folder in your antivirus, then start the zoo again:\n"
+               "      %s" % folder)
+    return ("Public link: could not be created. Gradio needs a small tunnel program (frpc) that it downloads, and\n"
+            "  your antivirus (e.g. Windows Defender) deleted it right after the download. Your internet is fine.\n"
+            "  (Antivirus flags frpc because attackers use the same kind of tunnel tool.)\n%s\n%s" % (fix, lan))
 
 
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
@@ -437,16 +419,19 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
 
     demo = build(model, device, threshold, iou, output_dir, example_image, prompt, classifier, classes)
     os.makedirs(output_dir, exist_ok=True)
-    cloudflared = find_cloudflared() if share else None
     if share:
-        print("\nCreating a public link with %s (needs internet, takes a few seconds) ..."
-              % ("Cloudflare" if cloudflared else "Gradio"))
-    _, local_url, share_url = demo.queue().launch(
-        inbrowser=True, server_name="0.0.0.0" if lan else "127.0.0.1", server_port=port,
-        allowed_paths=[output_dir], share=share and not cloudflared, quiet=True, prevent_thread_lock=True,
-        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
-    if cloudflared:
-        share_url = cloudflare_link(demo.server_port, cloudflared)
+        print("\nCreating a public link (needs internet, takes a few seconds) ...")
+    gradio_says = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(gradio_says):   # Gradio's "check your internet" line misleads; see below
+            _, local_url, share_url = demo.queue().launch(
+                inbrowser=True, server_name="0.0.0.0" if lan else "127.0.0.1", server_port=port,
+                allowed_paths=[output_dir], share=share, quiet=True, prevent_thread_lock=True,
+                theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
+    finally:
+        for line in gradio_says.getvalue().splitlines():
+            if "share link" not in line.lower() and "status.gradio.app" not in line:
+                print(line)
     print("\nThe UI is open in your browser: %s" % local_url)
     if lan:
         ip = lan_address()
@@ -460,12 +445,9 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
             print("Same-network link: this computer is not on a network.")
     if share_url:
         print("Public link: %s" % share_url)
-        print("  Anyone with this link can use the zoo on this computer (%s)."
-              % ("until you stop it" if cloudflared else "it lasts up to a week, or until you stop"))
+        print("  It opens this UI (running on this computer) from any device. Anyone with the link can use it;\n"
+              "  it lasts up to a week, or until you stop the zoo.")
         print_qr(share_url)
-    elif cloudflared:
-        print("Public link: Cloudflare gave no link (no internet, or blocked by a firewall / proxy).\n"
-              "  LAN = True at the top of main.py (or --lan) gives a link for phones / PCs on the same network.")
     elif share:
         print(share_failed_help())
     else:
