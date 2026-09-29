@@ -79,8 +79,9 @@ def probe():
         smi = _nvidia_smi_gpu()
         if smi and not hw.torch_cuda:
             hw.notes.append("An NVIDIA GPU was found (%s) but the installed PyTorch is the CPU-only build, so it runs "
-                            "on CPU. To use the GPU:  pip install torch torchvision --index-url "
-                            "https://download.pytorch.org/whl/cu130  (see README 'GPU')." % smi)
+                            "on CPU. To use the GPU:  pip uninstall -y torch torchvision  then  pip install torch "
+                            "torchvision --index-url https://download.pytorch.org/whl/cu130  (older driver or GTX "
+                            "10-series and older: cu126; see README 'Optional: NVIDIA GPU on Windows')." % smi)
         elif smi:
             hw.notes.append("An NVIDIA GPU was found (%s) but PyTorch cannot use it. Update the NVIDIA driver or "
                             "install a torch build that matches it (%s)." % (smi, TORCH_CUDA_HELP))

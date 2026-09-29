@@ -109,7 +109,6 @@ python -m venv .venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # lets this window run the activate script
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130   # NVIDIA GPU only
 python -m pip install -r requirements.txt
 python main.py --check
 ```
@@ -145,8 +144,29 @@ In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
 > error for good for your user account, run this once instead (a work PC may block it):
 > `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
-On Linux the default PyTorch already includes NVIDIA GPU support; on a Mac the Apple GPU is used automatically. For an
-older NVIDIA driver on Windows, see [GPU](#getting-the-gpu-to-work).
+### Optional: NVIDIA GPU on Windows
+
+The steps above install the CPU version of PyTorch on Windows: everything works, just slower. If your PC has an
+**NVIDIA** graphics card, switch to the GPU version (skip this without an NVIDIA card: it only downloads ~2.5 GB for
+nothing). **1.** See which card and driver you have:
+
+```powershell
+nvidia-smi
+```
+
+**2.** Pick the build: **`cu130`** if it shows *CUDA Version 13.0* or higher and the card is an RTX 20-series / GTX 16-series
+or newer; otherwise (older driver, or a GTX 10-series or older card) **`cu126`**. If `nvidia-smi` is not found, install
+or update the [NVIDIA driver](https://www.nvidia.com/en-us/drivers/) first. **3.** Swap PyTorch (with `.venv` active;
+write `cu126` instead of `cu130` if that is your pick) and check that the GPU is found:
+
+```powershell
+python -m pip uninstall -y torch torchvision
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+python main.py --check
+```
+
+On **Linux**, the normal install already includes NVIDIA GPU support (with an older driver, do the same swap with
+`cu126`). On a **Mac** with Apple Silicon the GPU is used automatically.
 
 ---
 
@@ -430,20 +450,13 @@ Models on cuda:0:
 
 | System | What to do |
 |---|---|
-| **Linux + NVIDIA** | nothing: `pip install -r requirements.txt` already installs PyTorch with CUDA |
-| **Windows + NVIDIA** | the default PyTorch on Windows is CPU-only. Install the CUDA build **before** the requirements (below) |
+| **Windows + NVIDIA** | the normal install gives the CPU version of PyTorch: see [Optional: NVIDIA GPU on Windows](#optional-nvidia-gpu-on-windows) |
+| **Linux + NVIDIA** | nothing: the normal install already includes GPU support (older driver: the same swap with `cu126`) |
 | **Mac (Apple Silicon)** | nothing: used automatically (`mps`) |
 | **No GPU** | nothing: runs on CPU |
 
-```bash
-python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
-python -m pip install -r requirements.txt
-```
-
-`cu130` needs a recent NVIDIA driver (580 or newer) and is required for RTX 50-series cards. With an older driver use `cu126`. Run
-`nvidia-smi` to see your driver version, and see [pytorch.org](https://pytorch.org/get-started/locally/) for other
-versions. Already installed the CPU version? Run `python -m pip uninstall -y torch torchvision` first, then the two
-lines above.
+`python main.py --check` shows whether the GPU is used, and tells you when an NVIDIA card is there but PyTorch cannot
+use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
 
 ---
 
