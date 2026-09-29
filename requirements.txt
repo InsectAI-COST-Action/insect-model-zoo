@@ -1,0 +1,18 @@
+# InsectAI model zoo - Python 3.11 or newer.
+# CPU works out of the box. For an NVIDIA GPU install the CUDA build of torch FIRST (see README "GPU").
+torch>=2.11
+torchvision>=0.26
+ultralytics>=8.4.0,<=8.4.90      # upper bound comes from flat-bug; YOLO11 (insectDCT) runs fine on 8.4
+flat-bug>=1.2.0                  # flat-bug inference code (pyramid tiling); weights are fetched by main.py
+gradio>=6.0                      # the small web UI (python main.py)
+opencv-python>=4.8
+numpy>=1.24
+pillow>=10
+pi-heif>=0.18                    # read iPhone HEIC photos
+requests>=2.31
+tqdm>=4.66
+psutil>=5.9                      # hardware check (RAM)
+huggingface_hub>=0.30            # finds a saved Hugging Face login (gated models)
+# SAM 3 (text-prompted model): its text tokenizer + backbone layers
+timm>=1.0
+clip @ git+https://github.com/ultralytics/CLIP.git
