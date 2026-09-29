@@ -178,7 +178,28 @@ _ORDERS = [("Hymenoptera", "Insecta"), ("Diptera", "Insecta"), ("Coleoptera", "I
            ("Trichoptera", "Insecta"), ("Ephemeroptera", "Insecta"), ("Dermaptera", "Insecta"),
            ("Blattodea", "Insecta"), ("Mantodea", "Insecta"), ("Araneae", "Arachnida"), ("Opiliones", "Arachnida"),
            ("Isopoda", "Malacostraca")]
-ARTHROPOD_ORDERS = tuple((order, "a photo of Animalia Arthropoda %s %s." % (cls, order)) for order, cls in _ORDERS)
+ARTHROPOD_ORDERS = tuple((order, "a photo of Animalia Arthropoda %s %s." % (cls, order), "order")
+                         for order, cls in _ORDERS)
+# Added when BIOCLIP_INSECT_TAXA is False, so things that are not insects (e.g. a flower found by the detector) can
+# be named as such instead of being forced into an insect order. (name, BioCLIP text, rank)
+OTHER_LIFE = (("plant", "a photo of Plantae Tracheophyta Magnoliopsida.", "class"),
+              ("fungus", "a photo of Fungi.", "kingdom"),
+              ("bird", "a photo of Animalia Chordata Aves.", "class"),
+              ("mammal", "a photo of Animalia Chordata Mammalia.", "class"),
+              ("reptile", "a photo of Animalia Chordata Reptilia.", "class"),
+              ("amphibian", "a photo of Animalia Chordata Amphibia.", "class"),
+              ("snail or slug", "a photo of Animalia Mollusca Gastropoda.", "class"),
+              ("earthworm", "a photo of Animalia Annelida Clitellata.", "class"))
+BIOCLIP_INSECT_TAXA = True     # set from main.py: True = BioCLIP's default names are insect/arthropod orders only
+
+
+def bioclip_default_classes():
+    """BioCLIP's names when you give none: arthropod orders, plus other life if BIOCLIP_INSECT_TAXA is False."""
+    return ARTHROPOD_ORDERS if BIOCLIP_INSECT_TAXA else ARTHROPOD_ORDERS + OTHER_LIFE
+
+
+def bioclip_default_text():
+    return "arthropod orders" if BIOCLIP_INSECT_TAXA else "arthropod orders + plants, fungi, birds, mammals, ..."
 _BIOCLIP = dict(
     kind="classifier", family="bioclip", default_threshold=0.0, default_iou=0.0, label="",
     code_url="https://github.com/Imageomics/bioclip-2",

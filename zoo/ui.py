@@ -10,8 +10,8 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, get_classifier, get_model, group_default, group_of,
-                       groups, size_text, tags)
+from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, bioclip_default_text, get_classifier, get_model,
+                       group_default, group_of, groups, size_text, tags)
 from .weights import GatedModelError, hf_token, is_downloaded
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
@@ -21,7 +21,7 @@ DETECT = "Detect"
 NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
-CLASSES_HINT = "Names to choose from, e.g. Apis mellifera, Bombus terrestris  (empty = arthropod orders)"
+CLASSES_HINT = "Your names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
 CSS = """
 .option-list { max-height: 320px !important; }                      /* long model lists scroll */
 .zoo-pills { display: inline-flex; gap: 4px; margin-left: 8px; flex-shrink: 0; pointer-events: none; }
@@ -256,7 +256,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         gated_md = gr.Markdown(visible=False)
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
-        classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1, placeholder=CLASSES_HINT,
+        classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1, placeholder=CLASSES_HINT % bioclip_default_text(),
                                  visible=bool(first_cls and first_cls.classes))
         run_btn = gr.Button(DETECT, variant="primary")
 

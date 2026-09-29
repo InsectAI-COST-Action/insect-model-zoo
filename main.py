@@ -20,6 +20,8 @@ IOU = None                               # overlap above which two boxes count a
 PROMPT = None                            # what text-prompt detectors (sam3) look for, e.g. "bee" or "bee, butterfly"
 CLASSES = None                           # names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris"
                                          # or a .txt file with one name per line; None = arthropod orders
+BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = insect/arthropod orders only;
+                                         # False = it may also say plant, fungus, bird, mammal, ... (not an insect)
 INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
@@ -50,6 +52,9 @@ if os.name == "nt" and len(HERE) > 140:
 sys.path.insert(0, HERE)
 from zoo import hardware, results                                                        # noqa: E402
 from zoo.registry import CLASSIFIERS, MODELS, get_classifier, get_model, models_table    # noqa: E402
+from zoo import registry                                                                  # noqa: E402
+
+registry.BIOCLIP_INSECT_TAXA = BIOCLIP_INSECT_TAXA
 
 EXAMPLES = """
 examples:
@@ -76,7 +81,8 @@ def build_parser():
     p.add_argument("--iou", type=float, help="overlap (IoU) threshold for merging duplicate boxes (default: model's)")
     p.add_argument("-p", "--prompt", help='what to look for, for text-prompt detectors (sam3): "bee" or "bee, fly"')
     p.add_argument("--classes", help='names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris" '
-                                     'or a .txt file with one name per line (default: arthropod orders)')
+                                     'or a .txt file with one name per line (default: arthropod orders, see '
+                                     'BIOCLIP_INSECT_TAXA in main.py)')
     p.add_argument("-i", "--input_image", help="one image to process (default: %s)" % INPUT_IMAGE)
     p.add_argument("-f", "--input_folder", help="process every image in this folder")
     p.add_argument("-o", "--output_dir", help="where results go (default: %s/<detector>+<classifier>)" % OUTPUT_DIR)
@@ -169,8 +175,9 @@ def run_cli(args, card, classifier):
     print("Detector %s (threshold %.3f, IoU %.2f%s)" % (card.name, threshold, iou,
                                                        ", prompt '%s'" % prompt if prompt else ""))
     if classifier:
-        print("Classifier %s%s" % (classifier.name, (" (%d names)" % len(classes)) if classes else
-                                   " (default: arthropod orders)" if classifier.classes else ""))
+        print("Classifier %s%s" % (classifier.name, (" (your %d name%s + %s)" % (
+            len(classes), "" if len(classes) == 1 else "s", registry.bioclip_default_text())) if classes else
+            " (default: %s)" % registry.bioclip_default_text() if classifier.classes else ""))
     print("%d image(s)\n" % len(images))
 
     rows, failed = [], []

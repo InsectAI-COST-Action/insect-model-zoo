@@ -2,7 +2,8 @@
 https://github.com/Imageomics/bioclip-2
 
 Each insect is cropped from the image and compared with a text for every class name; the best match wins.
-Default names are arthropod orders; give your own (species, genera, common names) for finer classes.
+Default names are arthropod orders (insects only; set BIOCLIP_INSECT_TAXA = False in main.py to add plants, fungi,
+birds, ...); give your own (species, genera, common names) for finer classes.
 """
 
 import numpy as np
@@ -28,18 +29,23 @@ class Classifier:
         import torch
         if self._text[0] != pairs:
             with torch.inference_mode():
-                feats = self.model.encode_text(self.tokenizer([text for _, text in pairs]).to(self.device))
+                feats = self.model.encode_text(self.tokenizer([p[1] for p in pairs]).to(self.device))
                 self._text = (pairs, feats / feats.norm(dim=-1, keepdim=True))
         return self._text[1]
 
     def classify(self, image_rgb, detections, classes=None):
-        """classes: your own names (list of str); None/empty = the default names of the model card."""
+        """classes: your own names (list of str), compared together with the default names."""
         import torch
         from PIL import Image
         if not detections:
             return
+        from ..registry import bioclip_default_classes
         own = [c.strip() for c in (classes or []) if c and c.strip()]
-        pairs = tuple((c, "a photo of %s." % c) for c in own) if own else self.card.classes
+        # (name, text, rank). Default names: arthropod orders (+ other life if BIOCLIP_INSECT_TAXA = False).
+        # Your own names always compete with the default names: with only your names, one name would always score
+        # 1.00, and something that fits none of them would still be forced into one of them.
+        defaults = tuple(p for p in bioclip_default_classes() if p[0].lower() not in {c.lower() for c in own})
+        pairs = tuple((c, "a photo of %s." % c, "") for c in own) + defaults
         text = self._text_features(pairs)
 
         h, w = image_rgb.shape[:2]
@@ -61,4 +67,4 @@ class Classifier:
             for d, p in zip(detections[start:start + 32], probs):
                 best = int(p.argmax())
                 d.taxon, d.taxon_score = pairs[best][0], float(p[best])
-                d.taxon_rank = "" if own else "order"
+                d.taxon_rank = pairs[best][2]

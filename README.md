@@ -203,6 +203,8 @@ IOU = None                               # overlap above which two boxes count a
 PROMPT = None                            # what text-prompt detectors (sam3) look for, e.g. "bee" or "bee, butterfly"
 CLASSES = None                           # names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris"
                                          # or a .txt file with one name per line; None = arthropod orders
+BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = insect/arthropod orders only;
+                                         # False = it may also say plant, fungus, bird, mammal, ... (not an insect)
 INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
@@ -320,10 +322,27 @@ of flower visitors. `taxon_score` is the model's probability for that taxon at t
 ### BioCLIP 2.5 and BioCLIP 2 (zero-shot)
 
 Biology foundation models from Imageomics, trained on the TreeOfLife-200M images. **You choose the names** (species,
-genera, families, orders, common names) and it picks the best match for each insect, so no training is needed. Without
-names it chooses between 16 arthropod orders (Hymenoptera, Diptera, Coleoptera, Lepidoptera, ...). BioCLIP 2.5 Huge is
-the strongest; BioCLIP 2 is half the size. Works best with a list that matches what can be in your images, e.g. the
-pollinators of your site. `taxon_score` is the probability among the names you gave.
+genera, families, orders, common names) and it picks the best match for each insect, so no training is needed.
+BioCLIP 2.5 Huge is the strongest; BioCLIP 2 is half the size. Works best with a list that matches what can be in your
+images, e.g. the pollinators of your site. `taxon_score` is the probability among all names it compares.
+
+> [!NOTE]
+> **Insects only by default.** BioCLIP is not trained or tuned for insects; it simply picks the closest of the names it
+> is given. When you give no names, the zoo gives it **16 arthropod orders** (13 insect orders + spiders, harvestmen,
+> woodlice). So every detection gets an insect/arthropod order, even something that is not an insect (e.g. a flower
+> the detector picked up), usually with a low score.
+>
+> **To turn this off**, open `main.py` and change the line near the top to
+> ```python
+> BIOCLIP_INSECT_TAXA = False
+> ```
+> BioCLIP then also chooses between *plant, fungus, bird, mammal, reptile, amphibian, snail or slug, earthworm*, so
+> things that are not insects are named as such. Insects still get their order.
+>
+> **Your own names** (`--classes` or the names field in the UI) are compared *together with* these default names.
+> So one name alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of
+> your names gets the closest order (or *plant*, ... with `BIOCLIP_INSECT_TAXA = False`) instead of being forced
+> into one of your names.
 
 - **Paper:** Gu, Stevens, Campolongo et al. (2025). *BioCLIP 2: Emergent Properties from Scaling Hierarchical
   Contrastive Learning*. DOI [10.48550/arXiv.2505.23883](https://doi.org/10.48550/arXiv.2505.23883)
@@ -420,6 +439,7 @@ lines above.
 | Too slow | use a GPU, or smaller models (`insectdct-v8-s`, `flatbug-n`, `flatbug-s`, `bioclip-2`), or `-c none` |
 | Too many / too few detections | raise / lower `--threshold` (or the slider in the UI) |
 | BioCLIP gives odd names | give it a list that matches what can be in your images (`--classes`, or the names field in the UI) |
+| BioCLIP calls a flower or leaf an insect order | by default it only knows insect/arthropod orders: set `BIOCLIP_INSECT_TAXA = False` in `main.py` (see [BioCLIP](#bioclip-25-and-bioclip-2-zero-shot)) |
 | `sam3`: *No Hugging Face token found* / *error 401* / *error 403* | see [docs/GATED_MODELS.md](docs/GATED_MODELS.md#if-it-does-not-work) |
 | UI on a remote Linux server / cluster (no screen) | run `python main.py --ui --port 7860` there and `ssh -L 7860:localhost:7860 you@server` from your laptop, then open http://127.0.0.1:7860; or just use the command line |
 
