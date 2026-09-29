@@ -198,6 +198,34 @@ def bioclip_default_classes():
     return ARTHROPOD_ORDERS if BIOCLIP_INSECT_TAXA else ARTHROPOD_ORDERS + OTHER_LIFE
 
 
+_LATIN = None
+
+
+def latin_name_problems(names):
+    """Names for BioCLIP must be written as Latin (scientific) names: 'Genus species' (optionally a subspecies), or
+    one capitalised word for a genus / family / order. Returns a list of messages (empty = all fine)."""
+    global _LATIN
+    import re
+    if _LATIN is None:
+        _LATIN = re.compile(r"^[A-Z][a-z]+( [a-z]+(-[a-z]+)?){0,2}$")
+    problems = []
+    for name in names:
+        if _LATIN.match(name):
+            continue
+        words = name.split()
+        # suggest a fix only when it is clearly just capitalisation: one word ("apis"), or the genus was already
+        # capitalised ("Apis Mellifera"). "honey bee" -> "Honey bee" would look Latin but is not.
+        guess = ""
+        if len(words) == 1 or (len(words) in (2, 3) and words[0][:1].isupper()):
+            guess = " ".join([words[0].capitalize()] + [w.lower() for w in words[1:]])
+        hint = " (did you mean '%s'?)" % guess if guess and _LATIN.match(guess) and guess != name else ""
+        problems.append("'%s' is not written as a Latin name%s." % (name, hint))
+    if problems:
+        problems.append("Please write the complete Latin name as: Genus species, e.g. Apis mellifera or Bombus "
+                        "terrestris. A genus, family or order alone also works, e.g. Bombus, Syrphidae, Hymenoptera.")
+    return problems
+
+
 def bioclip_default_text():
     return "arthropod orders" if BIOCLIP_INSECT_TAXA else "arthropod orders + plants, fungi, birds, mammals, ..."
 _BIOCLIP = dict(

@@ -179,7 +179,7 @@ python main.py --help                                         # all options + th
 | `--threshold` | `-t` | detection confidence 0–1; lower finds more but also more false positives | the model's own value |
 | `--iou` | | overlap (0–1) above which two boxes are merged as the same insect | the model's own value |
 | `--prompt` | `-p` | what to look for, for text-prompt detectors (`sam3`): `"bee"` or `"bee, butterfly"` | `insect` |
-| `--classes` | | names for zero-shot classifiers (`bioclip-*`): `"Apis mellifera, Bombus terrestris"` or a `.txt` file with one name per line | arthropod orders |
+| `--classes` | | Latin names for zero-shot classifiers (`bioclip-*`): `"Apis mellifera, Bombus terrestris"` or a `.txt` file with one name per line | arthropod orders |
 | `--input_image` | `-i` | one image | `images/test_image.jpg` |
 | `--input_folder` | `-f` | all images in a folder (`.jpg .png .tif .bmp .webp .heic`) | – |
 | `--output_dir` | `-o` | where results go (a sub-folder per detector + classifier) | `output` |
@@ -339,7 +339,10 @@ images, e.g. the pollinators of your site. `taxon_score` is the probability amon
 > BioCLIP then also chooses between *plant, fungus, bird, mammal, reptile, amphibian, snail or slug, earthworm*, so
 > things that are not insects are named as such. Insects still get their order.
 >
-> **Your own names** (`--classes` or the names field in the UI) are compared *together with* these default names.
+> **Your own names** (`--classes` or the names field in the UI) must be **Latin names**: *Genus species*
+> (`Apis mellifera`, `Bombus terrestris`) or one capitalised genus / family / order (`Bombus`, `Syrphidae`). Anything
+> else (`apis`, `honey bee`) is refused with a message showing the right format. They are compared *together with*
+> these default names.
 > So one name alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of
 > your names gets the closest order (or *plant*, ... with `BIOCLIP_INSECT_TAXA = False`) instead of being forced
 > into one of your names.

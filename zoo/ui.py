@@ -11,7 +11,7 @@ from collections import Counter
 
 from .engine import Zoo
 from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, bioclip_default_text, get_classifier, get_model,
-                       group_default, group_of, groups, size_text, tags)
+                       group_default, group_of, groups, latin_name_problems, size_text, tags)
 from .weights import GatedModelError, hf_token, is_downloaded
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
@@ -21,7 +21,7 @@ DETECT = "Detect"
 NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
-CLASSES_HINT = "Your names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
+CLASSES_HINT = "Latin names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
 CSS = """
 .option-list { max-height: 320px !important; }                      /* long model lists scroll */
 .zoo-pills { display: inline-flex; gap: 4px; margin-left: 8px; flex-shrink: 0; pointer-events: none; }
@@ -171,6 +171,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             raise gr.Error("Add an image first.")
         card, cls = get_model(det_name), (CLASSIFIERS.get(cls_name) if cls_name else None)
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
+        problems = latin_name_problems(names) if names and cls and cls.classes else []
+        if problems:
+            raise gr.Error(" ".join(problems), title="Check the names")
         warnings, result = [], {}
         status = {"text": "Loading %s ... (please wait)" % card.name}
 
