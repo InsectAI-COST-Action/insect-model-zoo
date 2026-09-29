@@ -319,6 +319,43 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     return demo
 
 
+def qr_lines(url):
+    """The URL as a QR code for the terminal: black on white (scans in light and dark terminals), two QR rows per
+    text line using half blocks. None if the qrcode package is missing."""
+    try:
+        import qrcode
+    except ImportError:
+        return None
+    qr = qrcode.QRCode(border=2, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(url)
+    qr.make(fit=True)
+    m = qr.get_matrix()                          # True = dark module, border included
+    if len(m) % 2:
+        m.append([False] * len(m[0]))
+    chars = {(False, False): " ", (True, True): "█", (True, False): "▀", (False, True): "▄"}
+    return ["\033[30;47m" + "".join(chars[(m[r][c], m[r + 1][c])] for c in range(len(m[0]))) + "\033[0m"
+            for r in range(0, len(m), 2)]
+
+
+def print_qr(url):
+    lines = qr_lines(url)
+    if not lines:
+        print("  (pip install qrcode to also get a QR code here)")
+        return
+    try:
+        import colorama                          # lets older Windows consoles show the black/white colours
+        colorama.just_fix_windows_console()
+    except Exception:
+        pass
+    try:
+        print("  Scan to open it on a phone:\n")
+        for line in lines:
+            print("  " + line)
+        print()
+    except UnicodeEncodeError:                   # a console that cannot show block characters: skip the QR code
+        print("  (this terminal cannot show the QR code)")
+
+
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
            classes=None, share=False):
     import gradio as gr
@@ -335,6 +372,7 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
     if share_url:
         print("Public link: %s" % share_url)
         print("  Anyone with this link can use the zoo on this computer (it lasts up to a week, or until you stop).")
+        print_qr(share_url)
     elif share:
         print("Public link: could not be created (no internet, or blocked by a firewall / antivirus).")
     else:

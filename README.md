@@ -198,8 +198,8 @@ dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so
 Stop the UI with **Ctrl+C** in the terminal.
 
 **Share it:** `python main.py --share` (or `SHARE = True` at the top of `main.py`) also prints a public link
-(`https://….gradio.live`, valid up to a week or until you stop) so colleagues can try the zoo in their browser, running on
-your computer. Anyone with the link can use it, so only share it with people you trust.
+(`https://….gradio.live`, valid up to a week or until you stop), with a QR code to scan with a phone, so colleagues
+can try the zoo in their browser, running on your computer. Anyone with the link can use it, so only share it with people you trust.
 
 ### The command line
 
