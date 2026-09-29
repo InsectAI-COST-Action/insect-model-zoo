@@ -320,13 +320,24 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
 
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
-           classes=None):
+           classes=None, share=False):
     import gradio as gr
 
     demo = build(model, device, threshold, iou, output_dir, example_image, prompt, classifier, classes)
-    print("\nOpening the UI in your browser (if it does not open, use the http://127.0.0.1:... address below).")
-    print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    demo.queue().launch(inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
-                        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(),
-                        css=CSS)
+    if share:
+        print("\nCreating a public link (needs internet, takes a few seconds) ...")
+    _, local_url, share_url = demo.queue().launch(
+        inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir], share=share,
+        quiet=True, prevent_thread_lock=True,
+        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
+    print("\nThe UI is open in your browser: %s" % local_url)
+    if share_url:
+        print("Public link: %s" % share_url)
+        print("  Anyone with this link can use the zoo on this computer (it lasts up to a week, or until you stop).")
+    elif share:
+        print("Public link: could not be created (no internet, or blocked by a firewall / antivirus).")
+    else:
+        print("Public link: off (to share the UI with others: SHARE = True at the top of main.py, or --share)")
+    print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
+    demo.block_thread()

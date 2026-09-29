@@ -197,6 +197,10 @@ dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so
 
 Stop the UI with **Ctrl+C** in the terminal.
 
+**Share it:** `python main.py --share` (or `SHARE = True` at the top of `main.py`) also prints a public link
+(`https://….gradio.live`, valid up to a week or until you stop) so colleagues can try the zoo in their browser, running on
+your computer. Anyone with the link can use it, so only share it with people you trust.
+
 ### The command line
 
 Any argument switches to command-line mode:
@@ -229,6 +233,7 @@ python main.py --help                                         # all options + th
 | `--check` | | hardware report: GPU, RAM, which models fit | |
 | `--download MODEL` | | only download weights (`all` = every model) | |
 | `--ui` | | open the UI, e.g. `python main.py --ui -m flatbug-s` | |
+| `--share` | | also create a public link to the UI (`https://….gradio.live`, lasts up to a week) that others can open | off |
 | `--help` | `-h` | help | |
 
 ### Default settings
@@ -250,6 +255,8 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
+SHARE = False                            # True = the UI also gets a public link (https://....gradio.live) that others
+                                         # can open; anyone with the link can use the zoo on this computer
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 HF_TOKEN = ""
