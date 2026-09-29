@@ -230,6 +230,10 @@ For each image, in `output/<detector>+<classifier>/` (just `output/<detector>/` 
 
 ## Models
 
+> ⚠️ <sub>**Licenses are copied from the original authors' work and may not be the full picture.** The insectDCT and
+> flat-bug models were trained with [Ultralytics YOLO](https://github.com/ultralytics/ultralytics), and the zoo runs
+> them (and SAM 3) with Ultralytics code, which is **AGPL-3.0**. Check before commercial use.</sub>
+
 ### Detectors (`-m`)
 
 | Model | Tags | Architecture | Weights | Threshold | License | Paper | Code |
@@ -354,10 +358,6 @@ images, e.g. the pollinators of your site. `taxon_score` is the probability amon
 - **Code:** [github.com/Imageomics/bioclip-2](https://github.com/Imageomics/bioclip-2) · **License:** MIT
 - **Weights:** [imageomics/bioclip-2.5-vith14](https://huggingface.co/imageomics/bioclip-2.5-vith14) and
   [imageomics/bioclip-2](https://huggingface.co/imageomics/bioclip-2) on Hugging Face (open, pinned to a commit)
-
-> **Licensing note:** each model keeps its authors' license (tables above). The insectDCT and flat-bug detectors
-> are trained with [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) (AGPL-3.0). For commercial use, check
-> Ultralytics' licensing too.
 
 ---
 
