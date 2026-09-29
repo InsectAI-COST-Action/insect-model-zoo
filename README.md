@@ -100,7 +100,7 @@ Copy the block for your system into a terminal (Windows: *PowerShell*, e.g. the 
 It downloads the zoo, creates a virtual environment `.venv` (a private Python folder for this project, so nothing
 clashes with other projects), installs everything and checks your hardware.
 
-**Windows (PowerShell)**
+### Windows (PowerShell)
 
 ```powershell
 git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
@@ -113,24 +113,8 @@ python -m pip install -r requirements.txt
 python main.py --check
 ```
 
-**macOS / Linux**
-
-```bash
-git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
-cd Insect_model_zoo
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python main.py --check
-```
-
-Your prompt now starts with `(.venv)`. **In a new terminal, activate again** before running the zoo (Windows: the
-`Set-ExecutionPolicy` and `Activate.ps1` lines; macOS / Linux: `source .venv/bin/activate`).
-In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
-
 > [!TIP]
-> **Windows: "Activate.ps1 cannot be loaded because running scripts is disabled on this system"?**
+> **"Activate.ps1 cannot be loaded because running scripts is disabled on this system"?**
 > Windows PowerShell blocks activation scripts by default. Running `activate.bat` does not help either: in PowerShell
 > it runs in a separate cmd process, so nothing gets activated in your window. The quickest fix only affects this one
 > terminal window and changes no system settings. Run these two lines:
@@ -165,8 +149,26 @@ python -m pip install torch torchvision --index-url https://download.pytorch.org
 python main.py --check
 ```
 
-On **Linux**, the normal install already includes NVIDIA GPU support (with an older driver, do the same swap with
-`cu126`). On a **Mac** with Apple Silicon the GPU is used automatically.
+### macOS / Linux
+
+```bash
+git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
+cd Insect_model_zoo
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python main.py --check
+```
+
+GPU: on **Linux** the normal install already includes NVIDIA GPU support (with an older driver, do the same swap as
+above with `cu126`); on a **Mac** with Apple Silicon the GPU is used automatically.
+
+### Every time you open a new terminal
+
+Your prompt starts with `(.venv)` when the environment is active. In a new terminal, activate it again before running
+the zoo: Windows `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` then `.\.venv\Scripts\Activate.ps1`;
+macOS / Linux `source .venv/bin/activate`. In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
 
 ---
 
