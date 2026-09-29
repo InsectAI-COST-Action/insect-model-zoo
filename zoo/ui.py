@@ -24,6 +24,16 @@ PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Latin names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
 CSS = """
 .option-list { max-height: 320px !important; }                      /* long model lists scroll */
+/* the open model list: one box, one row per model with a line between models */
+ul.option-list { padding: 6px !important; background: #fff !important; border: 1px solid #e2e8f0 !important;
+                 border-radius: 12px !important; box-shadow: 0 12px 28px rgba(15, 23, 42, .12) !important; }
+ul.option-list li[role=option] { padding: 10px 12px !important; border-radius: 8px; position: relative; }
+ul.option-list li[role=option] + li[role=option]::before {           /* a straight line between two models */
+  content: ""; position: absolute; top: 0; left: 10px; right: 10px; border-top: 1px solid #e8edf3; }
+ul.option-list li[role=option]:hover, ul.option-list li[role=option].active { background: #f0fdf4 !important; }
+ul.option-list li[role=option].selected { background: #dcfce7 !important; font-weight: 600;
+                                          box-shadow: inset 3px 0 0 #22c55e; }
+ul.option-list li .inner-item { display: none; }                     /* no check mark: the green row shows it */
 .zoo-pills { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; pointer-events: none; }
 .zoo-pill { padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid;
             line-height: 1.5; white-space: nowrap; }
@@ -76,7 +86,7 @@ PAGE_JS = """() => {
     document.querySelectorAll('li[role=option]').forEach(li => {
       const name = li.getAttribute('aria-label');
       put(li, null, name);
-      stack(li, textWidth(li, name), 48);    // 48: list padding + the check mark
+      stack(li, textWidth(li, name), 32);    // 32: row padding
     });
     document.querySelectorAll('input[role=combobox]').forEach(inp => {
       const wrap = inp.parentElement;
