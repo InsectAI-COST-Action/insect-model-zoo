@@ -345,7 +345,8 @@ images, e.g. the pollinators of your site. `taxon_score` is the probability amon
 > these default names.
 > So one name alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of
 > your names gets the closest order (or *plant*, ... with `BIOCLIP_INSECT_TAXA = False`) instead of being forced
-> into one of your names.
+> into one of your names. Write them as Latin names (`Genus species`, or a genus / family / order alone); upper
+> or lower case does not matter (`apis` = `Apis`).
 
 - **Paper:** Gu, Stevens, Campolongo et al. (2025). *BioCLIP 2: Emergent Properties from Scaling Hierarchical
   Contrastive Learning*. DOI [10.48550/arXiv.2505.23883](https://doi.org/10.48550/arXiv.2505.23883)

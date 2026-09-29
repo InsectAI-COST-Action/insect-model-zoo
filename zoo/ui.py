@@ -11,7 +11,7 @@ from collections import Counter
 
 from .engine import Zoo
 from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, bioclip_default_text, get_classifier, get_model,
-                       group_default, group_of, groups, latin_name_problems, size_text, tags)
+                       display_name, group_default, group_of, groups, clean_latin_names, size_text, tags)
 from .weights import GatedModelError, hf_token, is_downloaded
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
@@ -24,10 +24,18 @@ PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Latin names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
 CSS = """
 .option-list { max-height: 320px !important; }                      /* long model lists scroll */
-.zoo-pills { display: inline-flex; gap: 4px; margin-left: 8px; flex-shrink: 0; pointer-events: none; }
-.secondary-wrap > .zoo-pills { margin-right: 26px; }                 /* leave room for the dropdown arrow */
+.zoo-pills { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; pointer-events: none; }
 .zoo-pill { padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid;
             line-height: 1.5; white-space: nowrap; }
+/* name + pills on one line, or wrapped onto more lines when there is no room (the pills keep their shape) */
+li[role=option]:has(> .zoo-pills), .secondary-wrap:has(> .zoo-pills) {
+  flex-wrap: wrap !important; align-items: center !important; column-gap: 8px; row-gap: 4px;
+  white-space: nowrap; word-break: normal !important; }
+.secondary-wrap:has(> .zoo-pills) { padding-right: 34px; }            /* leave room for the dropdown arrow */
+/* when name + pills do not fit on one line (phone, small window, many tags): name on top, pills centred below */
+.zoo-stacked { justify-content: center !important; }
+.zoo-stacked > .zoo-pills { flex-basis: 100%; justify-content: center; }
+.secondary-wrap.zoo-stacked { padding: 4px 34px 6px; }
 .zoo-pill.detector     { color: #15803d; background: #dcfce7; border-color: #86efac; }   /* green  */
 .zoo-pill.segmentation { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }   /* teal   */
 .zoo-pill.classifier   { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }   /* purple */
@@ -56,13 +64,25 @@ PAGE_JS = """() => {
     inp.style.flex = '0 0 auto';
     inp.style.width = Math.ceil(ruler.measureText(inp.value).width + 4) + 'px';
   };
+  const textWidth = (el, text) => { ruler.font = getComputedStyle(el).font; return ruler.measureText(text).width; };
+  const pillsWidth = box => [...box.children].reduce((w, p) => w + p.getBoundingClientRect().width + 4, 0);
+  // stack (name on top, pills centred below) only when name + pills do not fit on one line
+  const stack = (row, nameWidth, reserve) => {
+    const box = row.querySelector(':scope > .zoo-pills');
+    row.classList.toggle('zoo-stacked', !!box && nameWidth + 8 + pillsWidth(box) > row.clientWidth - reserve);
+  };
   const decorate = () => {
     document.body.classList.remove('dark');
-    document.querySelectorAll('li[role=option]').forEach(li => put(li, null, li.getAttribute('aria-label')));
+    document.querySelectorAll('li[role=option]').forEach(li => {
+      const name = li.getAttribute('aria-label');
+      put(li, null, name);
+      stack(li, textWidth(li, name), 48);    // 48: list padding + the check mark
+    });
     document.querySelectorAll('input[role=combobox]').forEach(inp => {
       const wrap = inp.parentElement;
       put(wrap, wrap.querySelector('.icon-wrap'), inp.value);
       fit(inp, !!TAGS[inp.value]);
+      stack(wrap, textWidth(inp, inp.value), 72);   // 72: room for the dropdown arrow on both sides
       if (!wrap.dataset.zooClick) {        // a click anywhere in the field still opens the list
         wrap.dataset.zooClick = '1';
         wrap.addEventListener('click', e => { if (e.target !== inp) inp.focus(); });
@@ -133,7 +153,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             if card is None or not card.gated or is_downloaded(card):
                 continue
             state = "token found" if hf_token() else "needs free access + a Hugging Face token"
-            notes.append("🔒 **%s is gated**: %s · [How to get access (5 min)](%s)" % (card.name, state,
+            notes.append("🔒 **%s is gated**: %s · [How to get access (5 min)](%s)" % (display_name(card), state,
                                                                                      GATED_GUIDE_URL))
         note = "  \n".join(notes)
         return gr.update(value=note, visible=bool(note))
@@ -171,11 +191,13 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             raise gr.Error("Add an image first.")
         card, cls = get_model(det_name), (CLASSIFIERS.get(cls_name) if cls_name else None)
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
-        problems = latin_name_problems(names) if names and cls and cls.classes else []
+        problems = []
+        if names and cls and cls.classes:
+            names, problems = clean_latin_names(names)             # 'apis' -> 'Apis'
         if problems:
             raise gr.Error(" ".join(problems), title="Check the names")
         warnings, result = [], {}
-        status = {"text": "Loading %s ... (please wait)" % card.name}
+        status = {"text": "Loading %s ... (please wait)" % display_name(card)}
 
         def log(msg):
             print(msg)
@@ -184,7 +206,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
         def progress_for(c):
             def on_download(done, total, msg):
-                status["text"] = ("Downloading %s · %s / %s (please wait)" % (c.name, size_text(done),
+                status["text"] = ("Downloading %s · %s / %s (please wait)" % (display_name(c), size_text(done),
                                                                             size_text(total)) if total else msg)
             return on_download
 
@@ -192,9 +214,10 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             try:
                 zoo.load(card, progress_for(card))
                 if cls:
-                    status["text"] = "Loading %s ... (please wait)" % cls.name
+                    status["text"] = "Loading %s ... (please wait)" % display_name(cls)
                 zoo.load_classifier(cls, progress_for(cls) if cls else None)
-                status["text"] = "Running %s%s ... (please wait)" % (card.name, " + " + cls.name if cls else "")
+                status["text"] = "Running %s%s ... (please wait)" % (display_name(card),
+                                                                    " + " + display_name(cls) if cls else "")
                 folder = card.name + ("+" + cls.name if cls else "")
                 result["out"] = zoo.run_file(image_path, thr, iou if iou is not None else card.default_iou,
                                              os.path.join(output_dir, folder), text, names)
@@ -223,7 +246,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 print(error)
                 raise gr.Error("A gated model needs access and your Hugging Face token first. "
                                "Follow the 'How to get access' link under the model lists.")
-            raise gr.Error("%s failed: %s" % (card.name, error))
+            raise gr.Error("%s failed: %s" % (display_name(card), error))
         _, dets, secs, files = result["out"]
         for w in warnings:
             gr.Warning(w)

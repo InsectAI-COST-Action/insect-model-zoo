@@ -201,33 +201,32 @@ def bioclip_default_classes():
 _LATIN = None
 
 
-def latin_name_problems(names):
-    """Names for BioCLIP must be written as Latin (scientific) names: 'Genus species' (optionally a subspecies), or
-    one capitalised word for a genus / family / order. Returns a list of messages (empty = all fine)."""
+def clean_latin_names(names):
+    """BioCLIP names as Latin (scientific) names, whatever the upper/lower case: 'apis' -> 'Apis',
+    'bombus TERRESTRIS' -> 'Bombus terrestris'. A genus, family or order alone is fine too.
+    Returns (cleaned names, problems); problems lists names that cannot be Latin names (digits, symbols, ...)."""
     global _LATIN
     import re
     if _LATIN is None:
         _LATIN = re.compile(r"^[A-Z][a-z]+( [a-z]+(-[a-z]+)?){0,2}$")
-    problems = []
+    cleaned, problems = [], []
     for name in names:
-        if _LATIN.match(name):
-            continue
         words = name.split()
-        # suggest a fix only when it is clearly just capitalisation: one word ("apis"), or the genus was already
-        # capitalised ("Apis Mellifera"). "honey bee" -> "Honey bee" would look Latin but is not.
-        guess = ""
-        if len(words) == 1 or (len(words) in (2, 3) and words[0][:1].isupper()):
-            guess = " ".join([words[0].capitalize()] + [w.lower() for w in words[1:]])
-        hint = " (did you mean '%s'?)" % guess if guess and _LATIN.match(guess) and guess != name else ""
-        problems.append("'%s' is not written as a Latin name%s." % (name, hint))
+        fixed = " ".join([words[0].capitalize()] + [w.lower() for w in words[1:]]) if words else ""
+        if _LATIN.match(fixed):
+            cleaned.append(fixed)
+        else:
+            problems.append("'%s' is not a Latin name." % name)
     if problems:
         problems.append("Please write the complete Latin name as: Genus species, e.g. Apis mellifera or Bombus "
                         "terrestris. A genus, family or order alone also works, e.g. Bombus, Syrphidae, Hymenoptera.")
-    return problems
+    return cleaned, problems
 
 
 def bioclip_default_text():
     return "arthropod orders" if BIOCLIP_INSECT_TAXA else "arthropod orders + plants, fungi, birds, mammals, ..."
+
+
 _BIOCLIP = dict(
     kind="classifier", family="bioclip", default_threshold=0.0, default_iou=0.0, label="",
     code_url="https://github.com/Imageomics/bioclip-2",
@@ -288,6 +287,13 @@ def groups(table):
 
 def group_of(card):
     return card.group or card.name
+
+
+def display_name(card):
+    """Name for people: 'SAM 3', 'flat-bug M v2', 'BioCLIP 2.5' (card.name is the short code you type, e.g. 'sam3')."""
+    group = group_of(card)
+    sizes = sum(1 for table in (MODELS, CLASSIFIERS) for c in table.values() if group_of(c) == group)
+    return "%s %s" % (group, card.variant) if card.variant and sizes > 1 else group
 
 
 def group_default(group, table):

@@ -6,6 +6,7 @@ import importlib
 import time
 
 from . import hardware, results
+from .registry import display_name
 from .weights import ensure_weights
 
 
@@ -54,7 +55,7 @@ class Zoo:
 
         path = ensure_weights(card, progress)
         self._unload(slot)
-        self.log("Loading %s %s on %s" % (slot.kind, card.name, hardware.describe_device(device, self.hw)))
+        self.log("Loading %s %s on %s" % (slot.kind, display_name(card), hardware.describe_device(device, self.hw)))
         family = importlib.import_module("zoo.families." + card.family)
         build = family.Classifier if slot.kind == "classifier" else family.Model
         try:

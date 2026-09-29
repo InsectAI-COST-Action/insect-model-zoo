@@ -14,7 +14,7 @@ import os
 import shutil
 import time
 
-from .registry import GATED_GUIDE_URL, MB, size_text
+from .registry import GATED_GUIDE_URL, MB, display_name, size_text
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEIGHTS_DIR = os.environ.get("INSECT_ZOO_WEIGHTS", os.path.join(HERE, "weights"))
@@ -126,7 +126,7 @@ def _ensure_weight_file(card, progress):
 
     progress = progress or _tqdm_progress(card.weights.filename)
     lock = dest + ".lock"
-    _acquire_lock(lock, progress, card.name)
+    _acquire_lock(lock, progress, display_name(card))
     try:
         if is_downloaded(card):             # another window finished it while we waited
             return dest

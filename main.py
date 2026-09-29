@@ -165,8 +165,10 @@ def run_cli(args, card, classifier):
     if classes and not (classifier and classifier.classes):
         print("NOTE: --classes is only used by zero-shot classifiers (bioclip-2.5, bioclip-2); ignoring it.")
         classes = None
-    if classes and registry.latin_name_problems(classes):
-        sys.exit("\n".join(registry.latin_name_problems(classes)))
+    if classes:
+        classes, problems = registry.clean_latin_names(classes)          # 'apis' -> 'Apis'
+        if problems:
+            sys.exit("\n".join(problems))
 
     zoo = Zoo(args.device or DEVICE)
     for note in zoo.hw.notes:
