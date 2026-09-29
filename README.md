@@ -132,7 +132,7 @@ python main.py
 
 A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a **model** dropdown, a **threshold**
 slider and **Detect**. The test image is preloaded, so you can press Detect straight away. The first time you use a
-model, its download progress is shown in the result panel. The result image (with the number found, time and device)
+model, the Detect button shows the download (e.g. "Downloading flatbug-l · 32 MB / 80 MB") until it is done. The result image (with the number found, time and device)
 can be downloaded from the panel; the CSV/JSON files are saved to `output/<model>/`. The text-prompt field unlocks only
 for models that take text (`sam3`: type e.g. `bee`). Stop the UI with **Ctrl+C** in the terminal.
 

@@ -2,6 +2,7 @@
 
 import base64
 import os
+import threading
 
 from .engine import Zoo
 from .registry import GATED_GUIDE_URL, MODELS, get_model, size_text
@@ -10,6 +11,7 @@ from .weights import GatedModelError, hf_token, is_downloaded
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DETECT = "Detect"
 PROMPT_LOCKED = "Text prompt (not used by this model)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 
@@ -67,38 +69,59 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None)
                 gr.update(interactive=card.text_prompt, placeholder=placeholder(card)),
                 gr.update(value=note, visible=bool(note)))
 
-    def run(name, thr, text, image_path, progress=gr.Progress()):
+    def run(name, thr, text, image_path):
+        """The Detect button itself shows what is going on (download MB, loading, running) until the result is in."""
         if not image_path:
             raise gr.Error("Add an image first.")
         card = get_model(name)
-        warnings = []
+        warnings, result = [], {}
+        status = {"text": "Loading %s ... (please wait)" % card.name}
 
         def log(msg):
             print(msg)
             if msg.startswith("WARNING"):
                 warnings.append(msg[len("WARNING: "):])
 
+        def on_download(done, total, _msg):
+            status["text"] = "Downloading %s · %s / %s (please wait)" % (card.name, size_text(done), size_text(total))
+
+        def work():                      # runs in a thread, so the button can be updated meanwhile
+            try:
+                zoo.load(card, on_download)
+                status["text"] = "Running %s ... (please wait)" % card.name
+                result["out"] = zoo.run_file(image_path, thr, iou if iou is not None else card.default_iou,
+                                             os.path.join(output_dir, card.name), text)
+            except Exception as e:
+                result["error"] = e
+
         zoo.log = log
         if not is_downloaded(card):
             print("Downloading %s weights (%s) ..." % (card.name, size_text(card.weights.size)))
-        progress(None, desc="Loading %s" % card.name)
-        try:
-            zoo.load(card, lambda done, total, msg: progress(done / total if total else None, desc=msg))
-        except GatedModelError as e:
-            print()
-            print(e)
-            raise gr.Error("%s is gated: request access and add your Hugging Face token first. "
-                           "Follow the 'How to get access' link under the model list." % card.name)
-        except Exception as e:
-            raise gr.Error("Could not load %s: %s" % (card.name, e))
-        progress(None, desc="Running %s" % card.name)
-        _, dets, secs, files = zoo.run_file(image_path, thr, iou if iou is not None else card.default_iou,
-                                            os.path.join(output_dir, card.name), text)
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        shown = None
+        while worker.is_alive():
+            if status["text"] != shown:
+                shown = status["text"]
+                yield gr.update(), gr.update(value=shown, interactive=False)
+            worker.join(0.25)
+
+        ready = gr.update(value=DETECT, interactive=True)
+        error = result.get("error")
+        if error is not None:
+            yield gr.update(), ready
+            if isinstance(error, GatedModelError):
+                print()
+                print(error)
+                raise gr.Error("%s is gated: request access and add your Hugging Face token first. "
+                               "Follow the 'How to get access' link under the model list." % card.name)
+            raise gr.Error("%s failed: %s" % (card.name, error))
+        _, dets, secs, files = result["out"]
         for w in warnings:
             gr.Warning(w)
         print("%s: %d detection(s), %.2fs on %s -> %s" % (card.name, len(dets), secs, zoo.device,
                                                         os.path.dirname(files[0])))
-        return gr.update(value=files[0], label="%d found · %.1f s · %s" % (len(dets), secs, zoo.device))
+        yield gr.update(value=files[0], label="%d found · %.1f s · %s" % (len(dets), secs, zoo.device)), ready
 
     with gr.Blocks(title="InsectAI model zoo") as demo:
         gr.HTML(header_html())
@@ -115,11 +138,11 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None)
         gated_md = gr.Markdown(gated_note(first), visible=bool(first.gated))
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
-        run_btn = gr.Button("Detect", variant="primary")
+        run_btn = gr.Button(DETECT, variant="primary")
 
         model_dd.change(on_model_change, model_dd, [thr, text, gated_md])
-        run_btn.click(run, [model_dd, thr, text, image_in], image_out)
-        text.submit(run, [model_dd, thr, text, image_in], image_out)
+        run_btn.click(run, [model_dd, thr, text, image_in], [image_out, run_btn], show_progress="hidden")
+        text.submit(run, [model_dd, thr, text, image_in], [image_out, run_btn], show_progress="hidden")
     return demo
 
 

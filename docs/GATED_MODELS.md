@@ -65,7 +65,7 @@ Instead of editing `main.py` you can:
 ## Step 5: Run it
 
 **UI:** `python main.py` → pick **sam3 (gated)** → type what to look for (e.g. `bee`, or `bee, butterfly`) →
-**Detect**. The first time, the 3.2 GB download shows its progress in the result panel.
+**Detect**. The first time, the Detect button shows the 3.2 GB download progress until it is done.
 
 **Command line:**
 
