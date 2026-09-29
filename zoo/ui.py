@@ -46,6 +46,7 @@ li[role=option]:has(> .zoo-pills), .secondary-wrap:has(> .zoo-pills) {
 .zoo-stacked { justify-content: center !important; }
 .zoo-stacked > .zoo-pills { flex-basis: 100%; justify-content: center; }
 .secondary-wrap.zoo-stacked { padding: 4px 34px 6px; }
+.secondary-wrap.zoo-stacked > input { text-align: center; }             /* e.g. 'none' */
 .zoo-pill.detector     { color: #15803d; background: #dcfce7; border-color: #86efac; }   /* green  */
 .zoo-pill.segmentation { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }   /* teal   */
 .zoo-pill.classifier   { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }   /* purple */
@@ -76,28 +77,32 @@ PAGE_JS = """() => {
   };
   const textWidth = (el, text) => { ruler.font = getComputedStyle(el).font; return ruler.measureText(text).width; };
   const pillsWidth = box => [...box.children].reduce((w, p) => w + p.getBoundingClientRect().width + 4, 0);
-  // stack (name on top, pills centred below) only when name + pills do not fit on one line
-  const stack = (row, nameWidth, reserve) => {
+  // stacked = name on top, pills centred below. Used when a name + its pills do not fit on one line, and then for
+  // every entry of that list (and for both closed fields), so all entries look the same.
+  const tooWide = (row, nameWidth, reserve) => {
     const box = row.querySelector(':scope > .zoo-pills');
-    row.classList.toggle('zoo-stacked', !!box && nameWidth + 8 + pillsWidth(box) > row.clientWidth - reserve);
+    return !!box && nameWidth + 8 + pillsWidth(box) > row.clientWidth - reserve;
   };
   const decorate = () => {
     document.body.classList.remove('dark');
-    document.querySelectorAll('li[role=option]').forEach(li => {
-      const name = li.getAttribute('aria-label');
-      put(li, null, name);
-      stack(li, textWidth(li, name), 32);    // 32: row padding
+    document.querySelectorAll('ul.option-list').forEach(list => {
+      const items = [...list.querySelectorAll('li[role=option]')];
+      items.forEach(li => put(li, null, li.getAttribute('aria-label')));
+      const stacked = items.some(li => tooWide(li, textWidth(li, li.getAttribute('aria-label')), 32));  // 32: padding
+      items.forEach(li => li.classList.toggle('zoo-stacked', stacked));
     });
-    document.querySelectorAll('input[role=combobox]').forEach(inp => {
+    const fields = [...document.querySelectorAll('input[role=combobox]')];
+    fields.forEach(inp => {
       const wrap = inp.parentElement;
       put(wrap, wrap.querySelector('.icon-wrap'), inp.value);
       fit(inp, !!TAGS[inp.value]);
-      stack(wrap, textWidth(inp, inp.value), 72);   // 72: room for the dropdown arrow on both sides
       if (!wrap.dataset.zooClick) {        // a click anywhere in the field still opens the list
         wrap.dataset.zooClick = '1';
         wrap.addEventListener('click', e => { if (e.target !== inp) inp.focus(); });
       }
     });
+    const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
+    fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
   };
   new MutationObserver(decorate).observe(document.body, {childList: true, subtree: true, attributes: true,
                                                          attributeFilter: ['class']});
