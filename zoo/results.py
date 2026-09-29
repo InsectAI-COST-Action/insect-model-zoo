@@ -9,7 +9,8 @@ from dataclasses import dataclass
 import numpy as np
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".heic", ".heif")
-CSV_FIELDS = ["image", "model", "x1", "y1", "x2", "y2", "confidence", "label"]
+CSV_FIELDS = ["image", "model", "x1", "y1", "x2", "y2", "confidence", "label",
+              "classifier", "taxon", "taxon_score", "taxon_rank"]
 
 
 @dataclass
@@ -21,10 +22,21 @@ class Detection:
     confidence: float
     label: str
     polygon: list = None      # [[x, y], ...] outline in image pixels, for segmentation models
+    taxon: str = ""           # set by a classifier: what the insect is ("Unsure" if the classifier is not sure)
+    taxon_score: float = None  # classifier confidence 0-1
+    taxon_rank: str = ""      # e.g. species / family / order, when the classifier knows it
 
-    def row(self, image, model):
+    def row(self, image, model, classifier=""):
         return {"image": image, "model": model, "x1": round(self.x1), "y1": round(self.y1), "x2": round(self.x2),
-                "y2": round(self.y2), "confidence": round(self.confidence, 4), "label": self.label}
+                "y2": round(self.y2), "confidence": round(self.confidence, 4), "label": self.label,
+                "classifier": classifier, "taxon": self.taxon,
+                "taxon_score": "" if self.taxon_score is None else round(self.taxon_score, 4),
+                "taxon_rank": self.taxon_rank}
+
+    def caption(self):
+        if self.taxon and self.taxon != "Unsure":
+            return "%s %.2f" % (self.taxon, self.taxon_score or 0)
+        return "%s %.2f%s" % (self.label, self.confidence, " (unsure)" if self.taxon == "Unsure" else "")
 
 
 def load_image(path):
@@ -55,7 +67,7 @@ def draw(image_rgb, detections):
             cv2.polylines(img, [np.round(np.asarray(d.polygon)).astype(np.int32)], True, outline_color, thick)
         p1, p2 = (int(round(d.x1)), int(round(d.y1))), (int(round(d.x2)), int(round(d.y2)))
         cv2.rectangle(img, p1, p2, box_color, thick)
-        text = "%s %.2f" % (d.label, d.confidence)
+        text = d.caption()
         (tw, th), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font, thick)
         ty = p1[1] - 4 if p1[1] - th - base - 4 > 0 else p2[1] + th + 4
         cv2.rectangle(img, (p1[0], ty - th - base), (p1[0] + tw + 4, ty + base), box_color, -1)
@@ -63,7 +75,7 @@ def draw(image_rgb, detections):
     return img[:, :, ::-1]
 
 
-def save(image_path, image_rgb, detections, out_dir, model_name):
+def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name=""):
     """Write <stem>_annotated.jpg, <stem>_detections.csv and (with outlines) <stem>_detections.json.
     Returns the list of written file paths."""
     import cv2
@@ -82,15 +94,15 @@ def save(image_path, image_rgb, detections, out_dir, model_name):
     with open(out_csv, "w", newline="", encoding="utf-8") as f:
         wr = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         wr.writeheader()
-        wr.writerows(d.row(name, model_name) for d in detections)
+        wr.writerows(d.row(name, model_name, classifier_name) for d in detections)
     files.append(out_csv)
 
     if any(d.polygon is not None for d in detections):
         out_json = os.path.join(out_dir, stem + "_detections.json")
         h, w = image_rgb.shape[:2]
         with open(out_json, "w", encoding="utf-8") as f:
-            json.dump({"image": name, "model": model_name, "width": w, "height": h,
-                       "detections": [dict(d.row(name, model_name),
+            json.dump({"image": name, "model": model_name, "classifier": classifier_name, "width": w, "height": h,
+                       "detections": [dict(d.row(name, model_name, classifier_name),
                                            polygon=[[round(float(x), 1), round(float(y), 1)] for x, y in d.polygon]
                                            if d.polygon is not None else None) for d in detections]}, f)
         files.append(out_json)

@@ -1,4 +1,5 @@
-"""Load a model from the zoo (download weights -> hardware check -> load) and run it; shared by the CLI and the UI."""
+"""Load models from the zoo (download weights -> hardware check -> load) and run detector -> classifier.
+Shared by the CLI and the UI."""
 
 import gc
 import importlib
@@ -8,44 +9,67 @@ from . import hardware, results
 from .weights import ensure_weights
 
 
+class _Loaded:
+    """One loaded model (detector or classifier) and the device it runs on."""
+
+    def __init__(self, kind):
+        self.kind = kind                    # "detector" or "classifier"
+        self.card = self.model = self.device = None
+
+
 class Zoo:
-    """Keeps one model loaded at a time, so switching models in the UI does not fill up GPU memory."""
+    """Keeps one detector and one classifier loaded, so switching models in the UI does not fill up GPU memory."""
 
     def __init__(self, device="auto", log=print):
         self.hw = hardware.probe()
         self.requested_device = device
         self.log = log
-        self.card = None
-        self.model = None
-        self.device = None
+        self.detector = _Loaded("detector")
+        self.classifier = _Loaded("classifier")
+
+    # the detector is "the model" for code that only cares about detection
+    card = property(lambda self: self.detector.card)
+    device = property(lambda self: self.detector.device)
 
     def load(self, card, progress=None):
-        """progress(done, total, message) is forwarded to the weight download."""
+        """Load a detector. progress(done, total, message) is forwarded to the weight download."""
+        return self._load(self.detector, card, progress)
+
+    def load_classifier(self, card, progress=None):
+        """Load a classifier, or unload it with card=None."""
+        if card is None:
+            self._unload(self.classifier)
+            return None
+        return self._load(self.classifier, card, progress)
+
+    def _load(self, slot, card, progress=None, device=None):
         seen = len(self.hw.notes)
-        device = hardware.pick_device(self.requested_device, self.hw)
+        hardware.refresh(self.hw)                                   # free GPU memory changes as models load
+        device = device or hardware.pick_device(self.requested_device, self.hw)
         device, warnings = hardware.check_model(card, device, self.hw)
         for w in self.hw.notes[seen:] + warnings:
             self.log("WARNING: " + w)
-        if self.card is card and self.device == device:
-            return self.model
+        if slot.card is card and slot.device == device:
+            return slot.model
 
         path = ensure_weights(card, progress)
-        self.unload()
-        self.log("Loading %s on %s" % (card.name, hardware.describe_device(device, self.hw)))
+        self._unload(slot)
+        self.log("Loading %s %s on %s" % (slot.kind, card.name, hardware.describe_device(device, self.hw)))
         family = importlib.import_module("zoo.families." + card.family)
+        build = family.Classifier if slot.kind == "classifier" else family.Model
         try:
-            self.model = family.Model(card, path, device)
+            slot.model = build(card, path, device)
         except Exception as e:
             if device == "cpu":
                 raise
             self.log("WARNING: could not load %s on %s (%s) -> trying CPU." % (card.name, device, _short(e)))
             device = "cpu"
-            self.model = family.Model(card, path, device)
-        self.card, self.device = card, device
-        return self.model
+            slot.model = build(card, path, device)
+        slot.card, slot.device = card, device
+        return slot.model
 
-    def unload(self):
-        self.model = self.card = self.device = None
+    def _unload(self, slot):
+        slot.model = slot.card = slot.device = None
         gc.collect()
         try:
             import torch
@@ -54,28 +78,48 @@ class Zoo:
         except Exception:
             pass
 
+    def unload(self):
+        self._unload(self.detector)
+        self._unload(self.classifier)
+
+    def _on_cpu_if_gpu_fails(self, slot, run):
+        """Run `run(model)`; if the GPU runs out of memory (or fails), reload this model on CPU and retry once."""
+        try:
+            return run(slot.model)
+        except Exception as e:
+            if slot.device == "cpu" or not _is_gpu_error(e):
+                raise
+            card = slot.card
+            self.log("WARNING: %s failed on %s (%s) -> retrying on CPU." % (card.name, slot.device, _short(e)))
+            self._unload(slot)
+            self._load(slot, card, device="cpu")
+            return run(slot.model)
+
     def predict(self, image_rgb, threshold, iou, prompt=None):
-        """Run the loaded model; if the GPU runs out of memory (or fails), retry once on CPU.
-        `prompt` is the text prompt for models that take one (card.text_prompt), ignored otherwise."""
+        """Detect. `prompt` is the text prompt for models that take one (card.text_prompt), ignored otherwise."""
         prompt = ((prompt or "").strip() or None) if self.card.text_prompt else None
         t = time.time()
-        try:
-            dets = self.model.predict(image_rgb, threshold, iou, prompt)
-        except Exception as e:
-            if self.device == "cpu" or not _is_gpu_error(e):
-                raise
-            card = self.card
-            self.log("WARNING: %s failed on %s (%s) -> retrying on CPU." % (card.name, self.device, _short(e)))
-            self.requested_device = "cpu"
-            self.unload()
-            self.load(card)
-            dets = self.model.predict(image_rgb, threshold, iou, prompt)
+        dets = self._on_cpu_if_gpu_fails(self.detector, lambda m: m.predict(image_rgb, threshold, iou, prompt))
+        h, w = image_rgb.shape[:2]
+        for d in dets:                                              # keep boxes inside the image
+            d.x1, d.x2 = (min(max(v, 0), w - 1) for v in (d.x1, d.x2))
+            d.y1, d.y2 = (min(max(v, 0), h - 1) for v in (d.y1, d.y2))
         return dets, time.time() - t
 
-    def run_file(self, path, threshold, iou, out_dir, prompt=None):
+    def classify(self, image_rgb, dets, classes=None):
+        """Give every detection a taxon with the loaded classifier (if any). Returns the seconds it took."""
+        if self.classifier.model is None or not dets:
+            return 0.0
+        t = time.time()
+        self._on_cpu_if_gpu_fails(self.classifier, lambda m: m.classify(image_rgb, dets, classes))
+        return time.time() - t
+
+    def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None):
         image = results.load_image(path)
         dets, secs = self.predict(image, threshold, iou, prompt)
-        files = results.save(path, image, dets, out_dir, self.card.name)
+        secs += self.classify(image, dets, classes)
+        files = results.save(path, image, dets, out_dir, self.card.name,
+                             self.classifier.card.name if self.classifier.card else "")
         return image, dets, secs, files
 
 

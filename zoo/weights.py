@@ -72,7 +72,10 @@ def _tqdm_progress(desc):
     from tqdm import tqdm
     bar = {}
 
-    def report(done, total, _msg):
+    def report(done, total, msg):
+        if not total:                                   # a status message, not a byte count
+            print(msg)
+            return
         if "bar" not in bar:
             bar["bar"] = tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024, desc=desc)
         bar["bar"].update(done - bar["bar"].n)
@@ -82,10 +85,31 @@ def _tqdm_progress(desc):
 
 
 def ensure_weights(card, progress=None):
-    """Return the local path of the model's weight file, downloading it first if needed.
+    """Return the local path of the model's weight file, downloading it (and its small extra files) first if needed.
 
     progress(done_bytes, total_bytes, message) is called while downloading (the UI passes its own; the CLI gets a
     tqdm bar)."""
+    path = _ensure_weight_file(card, progress)
+    _ensure_extra_files(card)
+    return path
+
+
+def _ensure_extra_files(card):
+    """Small helper files some models need next to their weights (e.g. the upstream classifier code), pinned URLs."""
+    import requests
+    for rel, url in card.extra_files:
+        dest = os.path.join(WEIGHTS_DIR, card.name, *rel.split("/"))
+        if os.path.exists(dest):
+            continue
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        r = requests.get(url, timeout=60)
+        r.raise_for_status()
+        with open(dest + ".part", "wb") as f:
+            f.write(r.content)
+        os.replace(dest + ".part", dest)
+
+
+def _ensure_weight_file(card, progress):
     dest = weight_path(card)
     if is_downloaded(card):
         return dest
@@ -101,28 +125,70 @@ def ensure_weights(card, progress=None):
                            % (WEIGHTS_DIR, card.weights.filename, size_text(card.weights.size), size_text(free)))
 
     progress = progress or _tqdm_progress(card.weights.filename)
-    tmp = dest + ".part"
-    errors = []
-    for url in card.weights.urls:
-        try:
-            _download(url, tmp, card.weights.size, card.weights.filename, progress, token, card)
-        except GatedModelError:
-            raise
-        except Exception as e:              # network error, 404, ... -> try the next mirror
-            errors.append("%s: %s" % (url, e))
-            continue
-        digest = sha256(tmp)
-        if digest != card.weights.sha256:
-            os.remove(tmp)
-            errors.append("%s: checksum mismatch (got %s)" % (url, digest))
-            continue
-        os.replace(tmp, dest)
-        return dest
+    lock = dest + ".lock"
+    _acquire_lock(lock, progress, card.name)
+    try:
+        if is_downloaded(card):             # another window finished it while we waited
+            return dest
+        tmp = dest + ".part"
+        errors = []
+        for url in card.weights.urls:
+            try:
+                _download(url, tmp, card.weights.size, card.weights.filename, progress, token, card, lock)
+            except GatedModelError:
+                raise
+            except Exception as e:          # network error, 404, ... -> try the next mirror
+                errors.append("%s: %s" % (url, e))
+                continue
+            digest = sha256(tmp)
+            if digest != card.weights.sha256:
+                os.remove(tmp)
+                errors.append("%s: checksum mismatch (got %s)" % (url, digest))
+                continue
+            os.replace(tmp, dest)
+            return dest
+    finally:
+        _release_lock(lock)
     raise RuntimeError("Could not download %s for model '%s':\n  %s\nCheck your internet connection, or download it "
                        "manually and place it at %s" % (card.weights.filename, card.name, "\n  ".join(errors), dest))
 
 
-def _download(url, tmp, expected_size, name, progress, token="", card=None):
+def _acquire_lock(lock, progress, name):
+    """One download per file at a time, also across windows/processes (UI + command line). Others wait for it.
+    The lock holds the owner's process id, so a lock left by a closed or crashed window is taken over at once."""
+    import psutil
+    told = False
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return
+        except FileExistsError:
+            pass
+        try:
+            with open(lock) as f:
+                owner = int(f.read().strip() or 0)
+            stale = not psutil.pid_exists(owner) or time.time() - os.path.getmtime(lock) > 300
+        except (OSError, ValueError):
+            continue                        # the lock vanished or is being written: just try again
+        if stale:
+            _release_lock(lock)
+            continue
+        if not told:
+            progress(0, 0, "Waiting: %s is already being downloaded in another window ..." % name)
+            told = True
+        time.sleep(1)
+
+
+def _release_lock(lock):
+    try:
+        os.remove(lock)
+    except OSError:
+        pass
+
+
+def _download(url, tmp, expected_size, name, progress, token="", card=None, lock=None):
     import requests
 
     done = os.path.getsize(tmp) if os.path.exists(tmp) else 0
@@ -151,3 +217,5 @@ def _download(url, tmp, expected_size, name, progress, token="", card=None):
                 if now - last > 0.2 or done >= total:
                     progress(done, total, "Downloading %s  %.0f / %.0f MB" % (name, done / MB, total / MB))
                     last = now
+                    if lock:
+                        os.utime(lock)          # "still alive" for other windows waiting on this download

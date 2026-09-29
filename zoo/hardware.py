@@ -90,6 +90,18 @@ def probe():
     return hw
 
 
+def refresh(hw):
+    """Update free GPU memory (it drops once a model is loaded)."""
+    if not hw.gpus:
+        return
+    import torch
+    for g in hw.gpus:
+        try:
+            g.free_gb = torch.cuda.mem_get_info(g.index)[0] / GB
+        except Exception:
+            pass
+
+
 def _note(hw, msg):
     if msg not in hw.notes:
         hw.notes.append(msg)

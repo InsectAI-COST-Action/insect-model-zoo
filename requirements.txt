@@ -16,3 +16,7 @@ huggingface_hub>=0.30            # finds a saved Hugging Face login (gated model
 # SAM 3 (text-prompted model): its text tokenizer + backbone layers
 timm>=1.0
 clip @ git+https://github.com/ultralytics/CLIP.git
+# classifiers: BioCLIP (open_clip) and the insectDCT classifier (upstream code uses pandas + scipy)
+open_clip_torch>=3.0
+pandas>=2.0
+scipy>=1.10

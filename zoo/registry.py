@@ -1,7 +1,13 @@
 """
 The list of models in the zoo. One ModelCard per model; `family` picks the code in zoo/families/ that runs it.
 
-To add a model: add a ModelCard to MODELS (and a family module if it is a new kind of model), then add a row to the
+Two kinds of models:
+  - detectors   find the insects (boxes, sometimes outlines)            -> MODELS
+  - classifiers say what each found insect is (taxon + score)          -> CLASSIFIERS
+A detector can name a default classifier to pair with (insectDCT detector -> insectDCT classifier); any detector can be
+combined with any classifier.
+
+To add a model: add a ModelCard below (and a family module if it is a new kind of model), then add a row to the
 "Models" table in README.md.
 """
 
@@ -23,15 +29,15 @@ class WeightFile:
 
 @dataclass(frozen=True)
 class ModelCard:
-    name: str              # what you type after --model
-    family: str            # "insectdct" | "flatbug" | "sam3" -> zoo/families/<family>.py
+    name: str              # what you type after --model / --classifier
+    family: str            # zoo/families/<family>.py
     title: str
-    task: str              # "detection" or "instance segmentation"
+    task: str
     architecture: str
     weights: WeightFile
     default_threshold: float
     default_iou: float
-    label: str             # class name written to the CSV
+    label: str             # class name written to the CSV (detectors)
     min_ram_gb: float      # rough minimum free RAM to load + run on CPU
     min_vram_gb: float     # rough minimum free GPU memory to run on CUDA
     code_url: str
@@ -40,19 +46,29 @@ class ModelCard:
     license: str
     description: str
     extra_links: dict = field(default_factory=dict)
+    kind: str = "detector"     # "detector" or "classifier"
+    default_classifier: str = ""   # detectors: classifier used with it by default ("" = none)
     text_prompt: bool = False  # True for models steered by text (e.g. SAM3: "bee"); unlocks the prompt box in the UI
     default_prompt: str = ""   # used when a text-prompt model gets no prompt
+    classes: tuple = ()        # zero-shot classifiers: default (name, text) pairs; you can give your own names instead
+    extra_files: tuple = ()    # (relative path, url) of small extra files the model needs (e.g. upstream code)
     gated: str = ""            # Hugging Face page where access must be requested (needs HF_TOKEN); "" = open download
 
 
+MODELS = {}         # detectors
+CLASSIFIERS = {}
+
+
+def _add(**kw):
+    card = ModelCard(**kw)
+    (CLASSIFIERS if card.kind == "classifier" else MODELS)[card.name] = card
+
+
+# =========================================================================== DETECTORS
 # --------------------------------------------------------------------------- insectDCT (Bjerge et al.)
 INSECTDCT_COMMIT = "e459ae87ebe39732963e77e0fcdd0a9a28672a08"     # pinned so the download is reproducible
-_INSECTDCT_RAW = "https://raw.githubusercontent.com/kimbjerge/insectDCT/%s/runs/detect/" % INSECTDCT_COMMIT
-_INSECTDCT = dict(
-    family="insectdct",
-    task="detection",
-    default_iou=0.3,                     # upstream default NMS IoU
-    label="insect",
+_INSECTDCT_RAW = "https://raw.githubusercontent.com/kimbjerge/insectDCT/%s/" % INSECTDCT_COMMIT
+_INSECTDCT_PAPER = dict(
     code_url="https://github.com/kimbjerge/insectDCT",
     paper="Bjerge, Wogram, Serra-Marin, Sakhiashvili & Høye (2026). InsectDCT: A generalized pipeline for detection, "
           "taxonomic classification, and tracking of insects in camera-trap recordings. bioRxiv.",
@@ -60,6 +76,24 @@ _INSECTDCT = dict(
     license="GPL-3.0",
     extra_links={"Dataset (V6, Zenodo)": "https://zenodo.org/records/21154490"},
 )
+_INSECTDCT = dict(family="insectdct", task="detection", default_iou=0.3, label="insect",     # upstream NMS IoU
+                  default_classifier="insectdct-cls-v7", **_INSECTDCT_PAPER)
+
+_add(name="insectdct-v8-m", title="insectDCT detector v8 (YOLO11m)", architecture="YOLO11m",
+     weights=WeightFile("insects8Color.pt", (_INSECTDCT_RAW + "runs/detect/insects8Color/weights/best.pt",), 40730348,
+                        "81f3ce9e89f2e3cf4ad6ba532f85c7c791f58e562875c8646419cfc2ee7de8e0"),
+     default_threshold=0.407,            # upstream best-F1 confidence for insects8Color
+     min_ram_gb=2, min_vram_gb=1,
+     description="Insect detector for camera-trap images of flowers and vegetation, trained on dataset version 8. "
+                 "The most accurate insectDCT colour detector.",
+     **_INSECTDCT)
+_add(name="insectdct-v8-s", title="insectDCT detector v8 (YOLO11s)", architecture="YOLO11s",
+     weights=WeightFile("insects8Color11s.pt", (_INSECTDCT_RAW + "runs/detect/insects8Color11s/weights/best.pt",),
+                        19392986, "719ff88f1b8c9dc57ef0fed5e741adc12900a4c3e93c31f9a3c071379947e4ac"),
+     default_threshold=0.407,            # no separate best-F1 value published for the 11s model; same as v8-m
+     min_ram_gb=1.5, min_vram_gb=0.5,
+     description="Smaller, faster version of insectdct-v8-m (made for edge devices such as a Raspberry Pi).",
+     **_INSECTDCT)
 
 # --------------------------------------------------------------------------- flat-bug (Svenning et al.)
 _FLATBUG_ERDA = "https://anon.erda.au.dk/share_redirect/Bb0CR1FHG6/models/"
@@ -77,30 +111,6 @@ _FLATBUG = dict(
     license="MIT",
     extra_links={"Docs": "https://darsa.info/flat-bug/", "Dataset (Zenodo)": "https://doi.org/10.5281/zenodo.14761446"},
 )
-
-MODELS = {}
-
-
-def _add(**kw):
-    card = ModelCard(**kw)
-    MODELS[card.name] = card
-
-
-_add(name="insectdct-v8-m", title="insectDCT detector v8 (YOLO11m)", architecture="YOLO11m",
-     weights=WeightFile("insects8Color.pt", (_INSECTDCT_RAW + "insects8Color/weights/best.pt",), 40730348,
-                        "81f3ce9e89f2e3cf4ad6ba532f85c7c791f58e562875c8646419cfc2ee7de8e0"),
-     default_threshold=0.407,            # upstream best-F1 confidence for insects8Color
-     min_ram_gb=2, min_vram_gb=1,
-     description="Insect detector for camera-trap images of flowers and vegetation, trained on dataset version 8. "
-                 "The most accurate insectDCT colour detector.",
-     **_INSECTDCT)
-_add(name="insectdct-v8-s", title="insectDCT detector v8 (YOLO11s)", architecture="YOLO11s",
-     weights=WeightFile("insects8Color11s.pt", (_INSECTDCT_RAW + "insects8Color11s/weights/best.pt",), 19392986,
-                        "719ff88f1b8c9dc57ef0fed5e741adc12900a4c3e93c31f9a3c071379947e4ac"),
-     default_threshold=0.407,            # no separate best-F1 value published for the 11s model; same as v8-m
-     min_ram_gb=1.5, min_vram_gb=0.5,
-     description="Smaller, faster version of insectdct-v8-m (made for edge devices such as a Raspberry Pi).",
-     **_INSECTDCT)
 
 for _size, _nbytes, _sha, _ram, _vram in [
         ("N", 6275129, "e54eb199fb8397f70dc36aca4727b92836fb7f56b11f8544be60f54c13d273c0", 2, 1),
@@ -121,7 +131,6 @@ _add(name="flatbug-m-v2", title="flat-bug M v2 (YOLO26m-seg)", architecture="YOL
      description="Newest flat-bug model (default since flat-bug 1.2), built on YOLO26.",
      **_FLATBUG)
 
-
 # --------------------------------------------------------------------------- SAM 3 (Meta), gated on Hugging Face
 SAM3_COMMIT = "3c879f39826c281e95690f02c7821c4de09afae7"
 _add(name="sam3", family="sam3", title="SAM 3 (Meta), finds what you describe", task="instance segmentation, text",
@@ -141,30 +150,106 @@ _add(name="sam3", family="sam3", title="SAM 3 (Meta), finds what you describe", 
      extra_links={"Hugging Face": "https://huggingface.co/facebook/sam3"},
      text_prompt=True, default_prompt="insect", gated="https://huggingface.co/facebook/sam3")
 
+# =========================================================================== CLASSIFIERS
+# --------------------------------------------------------------------------- insectDCT hierarchical classifier
+_add(name="insectdct-cls-v7", kind="classifier", family="insectdct_cls",
+     title="insectDCT hierarchical classifier V7 (ConvNeXt-Base)",
+     task="104 insect taxa (order / family / species)", architecture="ConvNeXt-Base, 224 px crops",
+     weights=WeightFile("HierarchicalClassifierV7.zip",
+                        ("https://drive.usercontent.google.com/download?id=15oGWBgp3S08k8VK0r2qzMC65uUBFvsPh"
+                         "&export=download&confirm=t",),        # upstream README's Google Drive link (V7)
+                        507057210, "da89fdfc64014c1d8889a19bd6baa80eac409600f290ce671327cf1fa19425ad"),
+     default_threshold=0.0, default_iou=0.0, label="",
+     min_ram_gb=3, min_vram_gb=1.5,
+     description="Classifies each detected insect to species, genus, family or order: it goes as deep as it is sure "
+                 "(per-class thresholds), otherwise says 'Unsure'. Trained on camera-trap crops of flower visitors.",
+     extra_files=tuple(("upstream/common/" + f, _INSECTDCT_RAW + "common/" + f) for f in
+                       ("__init__.py", "hierarchical_classifier.py", "resnet50tf.py", "convNext.py", "efficientNet.py")),
+     **_INSECTDCT_PAPER)
 
-def get_model(name):
-    """Return the ModelCard for `name` (case-insensitive) or raise KeyError with a helpful message."""
+# --------------------------------------------------------------------------- BioCLIP (Imageomics), zero-shot
+# Default names: arthropod orders, written as BioCLIP's taxonomic text (kingdom ... order), which it was trained on.
+_ORDERS = [("Hymenoptera", "Insecta"), ("Diptera", "Insecta"), ("Coleoptera", "Insecta"), ("Lepidoptera", "Insecta"),
+           ("Hemiptera", "Insecta"), ("Orthoptera", "Insecta"), ("Odonata", "Insecta"), ("Neuroptera", "Insecta"),
+           ("Trichoptera", "Insecta"), ("Ephemeroptera", "Insecta"), ("Dermaptera", "Insecta"),
+           ("Blattodea", "Insecta"), ("Mantodea", "Insecta"), ("Araneae", "Arachnida"), ("Opiliones", "Arachnida"),
+           ("Isopoda", "Malacostraca")]
+ARTHROPOD_ORDERS = tuple((order, "a photo of Animalia Arthropoda %s %s." % (cls, order)) for order, cls in _ORDERS)
+_BIOCLIP = dict(
+    kind="classifier", family="bioclip", default_threshold=0.0, default_iou=0.0, label="",
+    code_url="https://github.com/Imageomics/bioclip-2",
+    paper="Gu, Stevens, Campolongo et al. (2025). BioCLIP 2: Emergent Properties from Scaling Hierarchical "
+          "Contrastive Learning. arXiv:2505.23883.",
+    doi="10.48550/arXiv.2505.23883",
+    license="MIT",
+    classes=ARTHROPOD_ORDERS,
+)
+_add(name="bioclip-2.5", title="BioCLIP 2.5 Huge (zero-shot, any names)", architecture="ViT-H/14 (open_clip)",
+     task="any names you give (zero-shot); default: arthropod orders",
+     weights=WeightFile("open_clip_model.safetensors",
+                        ("https://huggingface.co/imageomics/bioclip-2.5-vith14/resolve/"
+                         "6e3d04e3d6522012c88181085c5ae666e14c45cd/open_clip_model.safetensors",),
+                        3944517804, "ac2e37c2f89ef8e6b889176a9a3f418970ad9db15a218bd29e3321e95c46ae97"),
+     min_ram_gb=8, min_vram_gb=3,
+     description="Biology foundation model trained on 200M+ images of the tree of life: give it names (species, "
+                 "genera, orders, common names) and it picks the best match for each insect. The strongest BioCLIP.",
+     extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2.5-vith14"},
+     **_BIOCLIP)
+_add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="ViT-L/14 (open_clip)",
+     task="any names you give (zero-shot); default: arthropod orders",
+     weights=WeightFile("open_clip_model.safetensors",
+                        ("https://huggingface.co/imageomics/bioclip-2/resolve/"
+                         "2957b322090f9cb17ae72c71981c7218a28d81e0/open_clip_model.safetensors",),
+                        1710517724, "b7b2bf6fbc95799e42630e394cf95803892ab447c1a8ab629dbc82fbeaf7dfef"),
+     min_ram_gb=4, min_vram_gb=2,
+     description="Smaller, faster BioCLIP (half the size of 2.5) with the same way of working.",
+     extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2"},
+     **_BIOCLIP)
+
+
+def _lookup(name, table, what):
     key = (name or "").strip().lower()
-    if key in MODELS:
-        return MODELS[key]
-    close = difflib.get_close_matches(key, MODELS.keys(), n=3, cutoff=0.4)
-    msg = "Unknown model '%s'." % name
+    if key in table:
+        return table[key]
+    close = difflib.get_close_matches(key, table.keys(), n=3, cutoff=0.4)
+    msg = "Unknown %s '%s'." % (what, name)
     if close:
         msg += " Did you mean: %s?" % ", ".join(close)
     raise KeyError(msg + "\n\n" + models_table())
 
 
+def get_model(name):
+    """Return the detector ModelCard for `name` (case-insensitive) or raise KeyError with a helpful message."""
+    return _lookup(name, MODELS, "model")
+
+
+def get_classifier(name, detector=None):
+    """'auto' = the detector's own classifier (or none), 'none'/'' = no classifier, else a classifier name."""
+    key = (name or "").strip().lower()
+    if key == "auto":
+        key = detector.default_classifier if detector is not None else ""
+    if key in ("", "none"):
+        return None
+    return _lookup(key, CLASSIFIERS, "classifier")
+
+
 def models_table():
-    rows = [("MODEL", "TASK", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS")]
-    for c in MODELS.values():
-        rows.append((c.name, c.task, c.architecture, size_text(c.weights.size), c.license,
-                     "GATED *" if c.gated else "open"))
-    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
-    table = "\n".join("  " + "  ".join(v.ljust(w) for v, w in zip(r, widths)).rstrip() for r in rows)
-    if any(c.gated for c in MODELS.values()):
-        table += "\n\n  * GATED = free, but you must request access and add a Hugging Face token first.\n" \
-                 "    How to (5 minutes): " + GATED_GUIDE_URL
-    return table
+    def table(rows):
+        widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+        return "\n".join("  " + "  ".join(v.ljust(w) for v, w in zip(r, widths)).rstrip() for r in rows)
+
+    access = lambda c: "GATED *" if c.gated else "open"                                   # noqa: E731
+    det = [("DETECTOR (-m)", "TASK", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS", "DEFAULT CLASSIFIER")]
+    det += [(c.name, c.task, c.architecture, size_text(c.weights.size), c.license, access(c),
+             c.default_classifier or "-") for c in MODELS.values()]
+    cls = [("CLASSIFIER (-c)", "CLASSES", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS")]
+    cls += [(c.name, c.task, c.architecture, size_text(c.weights.size), c.license, access(c))
+            for c in CLASSIFIERS.values()]
+    text = table(det) + "\n\n" + table(cls)
+    if any(c.gated for c in list(MODELS.values()) + list(CLASSIFIERS.values())):
+        text += "\n\n  * GATED = free, but you must request access and add a Hugging Face token first.\n" \
+                "    How to (5 minutes): " + GATED_GUIDE_URL
+    return text
 
 
 def size_text(nbytes):
