@@ -205,13 +205,17 @@ Anyone with the link can use it, so only share it with people you trust.
 - **Link fails although you have internet?** Gradio downloads a small tunnel program for the link (`frpc`), and
   **antivirus software often deletes it** (Windows Defender does on many work PCs; it flags `frpc` because attackers
   use the same kind of tunnel tool). The terminal then says so and shows the fix: allow Gradio's `frpc` folder
-  once. On Windows (needs admin rights; on a work PC, IT may have to do it): *Windows Security → Virus & threat
-  protection → Manage settings → Exclusions → Add an exclusion → Folder* and pick
-  `%USERPROFILE%\.cache\huggingface\gradio\frpc`, or in a PowerShell opened as administrator:
+  once. On Windows (needs admin rights): *Windows Security → Virus & threat protection → Manage settings →
+  Exclusions → Add an exclusion → Folder* and pick `C:\Users\<you>\.cache\huggingface\gradio\frpc`, or in a
+  PowerShell opened as administrator (the terminal prints this line with your own folder):
 
   ```powershell
-  Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cache\huggingface\gradio\frpc"
+  Add-MpPreference -ExclusionPath "C:\Users\<you>\.cache\huggingface\gradio\frpc"
   ```
+
+  On a **work PC managed by IT** the exclusion may not stick, even with admin rights: `(Get-MpPreference).ExclusionPath`
+  stays empty and Defender keeps blocking the file (tamper protection). Then only IT can allow it: ask them to allow
+  Gradio's `frpc` in that folder (Windows Defender calls it `PUA:Win32/FRProxy`).
 
   If the terminal says the link *server* could not be reached, the network blocks it (common on work and campus
   networks): try another network, e.g. a phone hotspot.

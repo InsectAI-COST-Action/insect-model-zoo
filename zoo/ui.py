@@ -377,6 +377,18 @@ def lan_address():
         s.close()
 
 
+def frpc_state(path):
+    """'ok', 'missing' (never downloaded, or deleted by an antivirus) or 'blocked' (an antivirus stops any access)."""
+    if not os.path.exists(path):
+        return "missing"
+    try:
+        with open(path, "rb") as f:
+            f.read(1)
+    except OSError:                              # Windows: "the file contains a virus or potentially unwanted software"
+        return "blocked"
+    return "ok"
+
+
 def share_failed_help():
     """Why Gradio's public link failed and how to fix it, in plain words (Gradio itself only says: check your
     internet, which is rarely the problem)."""
@@ -385,32 +397,36 @@ def share_failed_help():
         from gradio.tunneling import BINARY_FOLDER, BINARY_PATH, BINARY_URL
     except Exception:
         return "Public link: could not be created.\n" + lan
-    if os.path.exists(BINARY_PATH):
+    state = frpc_state(BINARY_PATH)
+    if state == "ok":
         return ("Public link: could not be created. Gradio's link server could not be reached: a firewall or proxy\n"
                 "  blocks it (common on work and campus networks), or it is down (https://status.gradio.app).\n"
                 "  To fix it: try another network (e.g. a phone hotspot), or ask IT to allow Gradio share links.\n"
                 + lan)
-    try:
-        import requests
-        requests.head(BINARY_URL, timeout=10).raise_for_status()
-    except Exception:
-        return ("Public link: could not be created. Gradio could not download its small tunnel program (frpc):\n"
-                "  no internet, or a firewall / proxy blocks %s\n%s" % (BINARY_URL, lan))
+    if state == "missing":
+        try:
+            import requests
+            requests.head(BINARY_URL, timeout=10).raise_for_status()
+        except Exception:
+            return ("Public link: could not be created. Gradio could not download its small tunnel program (frpc):\n"
+                    "  no internet, or a firewall / proxy blocks %s\n%s" % (BINARY_URL, lan))
     folder = str(BINARY_FOLDER)
     if sys.platform == "win32":
-        fix = ("  To fix it once (needs admin rights; on a work PC, IT may have to do it), add this folder as an\n"
-               "  exclusion in Windows Security > Virus & threat protection > Manage settings > Exclusions >\n"
-               "  Add an exclusion > Folder:\n"
+        fix = ("  To fix it once (needs admin rights), add this folder as an exclusion in Windows Security >\n"
+               "  Virus & threat protection > Manage settings > Exclusions > Add an exclusion > Folder:\n"
                "      %s\n"
                "  or run this in a PowerShell opened as administrator:\n"
                "      Add-MpPreference -ExclusionPath \"%s\"\n"
-               "  Then start the zoo again." % (folder, folder))
+               "  Then start the zoo again. On a work PC managed by IT the exclusion may not stick (the list stays\n"
+               "  empty): then only IT can allow it. Ask them to allow Gradio's frpc in that folder (Windows\n"
+               "  Defender calls it PUA:Win32/FRProxy)." % (folder, folder))
     else:
         fix = ("  To fix it: allow this folder in your antivirus, then start the zoo again:\n"
                "      %s" % folder)
     return ("Public link: could not be created. Gradio needs a small tunnel program (frpc) that it downloads, and\n"
-            "  your antivirus (e.g. Windows Defender) deleted it right after the download. Your internet is fine.\n"
-            "  (Antivirus flags frpc because attackers use the same kind of tunnel tool.)\n%s\n%s" % (fix, lan))
+            "  your antivirus (e.g. Windows Defender) %s it right after the download. Your internet is fine.\n"
+            "  (Antivirus flags frpc because attackers use the same kind of tunnel tool.)\n%s\n%s"
+            % ("blocked" if state == "blocked" else "deleted", fix, lan))
 
 
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
