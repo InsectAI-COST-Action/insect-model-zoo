@@ -4,8 +4,14 @@ Started by `python main.py`.
 Models with several sizes show up once in the lists (e.g. "flat-bug"); picking one shows its size buttons.
 """
 
+import atexit
 import base64
 import os
+import queue
+import re
+import shutil
+import socket
+import subprocess
 import threading
 from collections import Counter
 
@@ -356,25 +362,112 @@ def print_qr(url):
         print("  (this terminal cannot show the QR code)")
 
 
+def lan_address():
+    """This computer's address on the local network (e.g. 192.168.1.23), or None without a network."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))               # UDP: nothing is sent, it only picks the network card in use
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
+CLOUDFLARED_PATHS = [r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
+                     r"C:\Program Files\cloudflared\cloudflared.exe"]
+
+
+def find_cloudflared():
+    """Cloudflare's tunnel program, if installed (winget / brew / apt put it on PATH; winget's folder is also checked
+    because PATH only updates in a new terminal)."""
+    return shutil.which("cloudflared") or next((p for p in CLOUDFLARED_PATHS if os.path.isfile(p)), None)
+
+
+def cloudflare_link(port, exe, wait=40):
+    """Public link through a Cloudflare quick tunnel (https://....trycloudflare.com, no account needed).
+    The tunnel runs while the zoo runs. None if no link came within `wait` seconds."""
+    proc = subprocess.Popen([exe, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:%d" % port],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                            text=True, encoding="utf-8", errors="replace")
+    atexit.register(proc.terminate)
+    found = queue.Queue()
+
+    def read_log():                              # keep reading, or cloudflared stalls once the pipe is full
+        for line in proc.stderr:
+            m = re.search(r"https://(?!api\.)[-a-z0-9]+\.trycloudflare\.com", line)
+            if m:
+                found.put(m.group(0))
+        found.put(None)
+
+    threading.Thread(target=read_log, daemon=True).start()
+    try:
+        url = found.get(timeout=wait)
+    except queue.Empty:
+        url = None
+    if not url:
+        proc.terminate()
+    return url
+
+
+def share_failed_help():
+    """Why Gradio's public link failed, and what to do instead."""
+    try:
+        from gradio.tunneling import BINARY_PATH
+        frpc_missing = not os.path.exists(BINARY_PATH)
+    except Exception:
+        frpc_missing = False
+    if frpc_missing:
+        why = ("Gradio's link program (frpc) is gone: an antivirus (e.g. Windows Defender, common on work PCs)\n"
+               "  most likely deleted it right after the download, or the download failed (no internet).\n"
+               "  Each new try downloads it again and gets flagged again.")
+    else:
+        why = ("The Gradio link server could not be reached (a firewall / proxy blocks it, or it is down:\n"
+               "  https://status.gradio.app).")
+    return ("Public link: could not be created. %s\n"
+            "  Ways around it:\n"
+            "  - install Cloudflare's free tunnel program once, then the zoo uses that instead (see README):\n"
+            "      Windows: winget install --id Cloudflare.cloudflared    macOS: brew install cloudflared\n"
+            "  - or LAN = True at the top of main.py (or --lan): a link for phones / PCs on the same network" % why)
+
+
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
-           classes=None, share=False):
+           classes=None, share=False, lan=False):
     import gradio as gr
 
     demo = build(model, device, threshold, iou, output_dir, example_image, prompt, classifier, classes)
     os.makedirs(output_dir, exist_ok=True)
+    cloudflared = find_cloudflared() if share else None
     if share:
-        print("\nCreating a public link (needs internet, takes a few seconds) ...")
+        print("\nCreating a public link with %s (needs internet, takes a few seconds) ..."
+              % ("Cloudflare" if cloudflared else "Gradio"))
     _, local_url, share_url = demo.queue().launch(
-        inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir], share=share,
-        quiet=True, prevent_thread_lock=True,
+        inbrowser=True, server_name="0.0.0.0" if lan else "127.0.0.1", server_port=port,
+        allowed_paths=[output_dir], share=share and not cloudflared, quiet=True, prevent_thread_lock=True,
         theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
+    if cloudflared:
+        share_url = cloudflare_link(demo.server_port, cloudflared)
     print("\nThe UI is open in your browser: %s" % local_url)
+    if lan:
+        ip = lan_address()
+        if ip:
+            lan_url = "http://%s:%d" % (ip, demo.server_port)
+            print("Same-network link: %s" % lan_url)
+            print("  Phones / PCs on the same network (Wi-Fi) can open it. If Windows asks, allow Python on private\n"
+                  "  networks. Guest / campus Wi-Fi (e.g. eduroam) often blocks this; a phone hotspot usually works.")
+            print_qr(lan_url)
+        else:
+            print("Same-network link: this computer is not on a network.")
     if share_url:
         print("Public link: %s" % share_url)
-        print("  Anyone with this link can use the zoo on this computer (it lasts up to a week, or until you stop).")
+        print("  Anyone with this link can use the zoo on this computer (%s)."
+              % ("until you stop it" if cloudflared else "it lasts up to a week, or until you stop"))
         print_qr(share_url)
+    elif cloudflared:
+        print("Public link: Cloudflare gave no link (no internet, or blocked by a firewall / proxy).\n"
+              "  LAN = True at the top of main.py (or --lan) gives a link for phones / PCs on the same network.")
     elif share:
-        print("Public link: could not be created (no internet, or blocked by a firewall / antivirus).")
+        print(share_failed_help())
     else:
         print("Public link: off (to share the UI with others: SHARE = True at the top of main.py, or --share)")
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
