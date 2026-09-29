@@ -270,9 +270,12 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
-SHARE = False                            # True = the UI also gets a public link that others can open; anyone with the
-                                         # link can use the zoo on this computer (Cloudflare if installed, else Gradio)
-LAN = False                              # True = phones / PCs on the same network (Wi-Fi) can open the UI too
+SHARE = False                            # True = the UI also gets a public link + QR code that others can open; anyone
+                                         # with the link can use the zoo on this computer. Uses Cloudflare's cloudflared
+                                         # if installed (recommended, see README "Share it"), else Gradio's link.
+                                         # Link fails? Install cloudflared, or use LAN = True below instead
+LAN = False                              # True = link + QR code for phones / PCs on the SAME network (Wi-Fi) only;
+                                         # needs no cloudflared (guest / campus Wi-Fi may block it: use a hotspot)
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 HF_TOKEN = ""
