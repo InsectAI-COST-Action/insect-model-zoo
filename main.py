@@ -26,12 +26,6 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
-SHARE = False                            # True = the UI also gets a public link + QR code (https://....gradio.live) that
-                                         # others can open; anyone with the link can use the zoo on this computer.
-                                         # Link fails? The terminal says why and how to fix it (often: antivirus),
-                                         # or use LAN = True below instead
-LAN = False                              # True = link + QR code for phones / PCs on the SAME network (Wi-Fi) only
-                                         # (guest / campus Wi-Fi may block it: use a phone hotspot)
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 # How to get one (5 min): docs/GATED_MODELS.md.  Keep it private: never share or push main.py with your token in it.
@@ -98,8 +92,6 @@ def build_parser():
     p.add_argument("--download", metavar="MODEL", help="only download the weights of MODEL ('all' = every model)")
     p.add_argument("--ui", action="store_true", help="open the web UI (the default when no arguments are given)")
     p.add_argument("--port", type=int, help="port for the web UI (default: first free port from 7860)")
-    p.add_argument("--share", action="store_true", help="also create a public link to the web UI that others can open")
-    p.add_argument("--lan", action="store_true", help="also let phones / PCs on the same network open the web UI")
     return p
 
 
@@ -254,8 +246,7 @@ def main(argv=None):
                iou=check_range("iou", args.iou if args.iou is not None else IOU),
                output_dir=resolve(args.output_dir, OUTPUT_DIR),
                example_image=resolve(None, INPUT_IMAGE), port=args.port,
-               prompt=args.prompt if args.prompt is not None else PROMPT, share=args.share or SHARE,
-               lan=args.lan or LAN,
+               prompt=args.prompt if args.prompt is not None else PROMPT,
                classes=", ".join(parse_classes(args.classes if args.classes is not None else CLASSES) or []))
         return
     run_cli(args, card, classifier)

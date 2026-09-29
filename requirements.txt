@@ -12,7 +12,6 @@ pi-heif>=0.18                    # read iPhone HEIC photos
 requests>=2.31
 tqdm>=4.66
 psutil>=5.9                      # hardware check (RAM)
-qrcode>=7.4                      # QR code of the public link in the terminal (--share)
 huggingface_hub>=0.30            # finds a saved Hugging Face login (gated models)
 # SAM 3 (text-prompted model): its text tokenizer + backbone layers
 timm>=1.0

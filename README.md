@@ -197,32 +197,6 @@ dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so
 
 Stop the UI with **Ctrl+C** in the terminal.
 
-**Share it:** `python main.py --share` (or `SHARE = True` at the top of `main.py`) also prints a public link
-with a QR code to scan with a phone, so colleagues can try the zoo in their browser, running on your computer.
-Anyone with the link can use it, so only share it with people you trust.
-
-- The link comes from Gradio (`https://….gradio.live`) and lasts up to a week, or until you stop the zoo.
-- **Link fails although you have internet?** Gradio downloads a small tunnel program for the link (`frpc`), and
-  **antivirus software often deletes it** (Windows Defender does on many work PCs; it flags `frpc` because attackers
-  use the same kind of tunnel tool). The terminal then says so and shows the fix: allow Gradio's `frpc` folder
-  once. On Windows (needs admin rights): *Windows Security → Virus & threat protection → Manage settings →
-  Exclusions → Add an exclusion → Folder* and pick `C:\Users\<you>\.cache\huggingface\gradio\frpc`, or in a
-  PowerShell opened as administrator (the terminal prints this line with your own folder):
-
-  ```powershell
-  Add-MpPreference -ExclusionPath "C:\Users\<you>\.cache\huggingface\gradio\frpc"
-  ```
-
-  On a **work PC managed by IT** the exclusion may not stick, even with admin rights: `(Get-MpPreference).ExclusionPath`
-  stays empty and Defender keeps blocking the file (tamper protection). Then only IT can allow it: ask them to allow
-  Gradio's `frpc` in that folder (Windows Defender calls it `PUA:Win32/FRProxy`).
-
-  If the terminal says the link *server* could not be reached, the network blocks it (common on work and campus
-  networks): try another network, e.g. a phone hotspot.
-- Only for people nearby: `python main.py --lan` (or `LAN = True`) prints a link and QR code for phones and PCs on
-  the **same network**. If Windows asks, allow Python on private networks. Guest and campus Wi-Fi (e.g. eduroam)
-  often block device-to-device traffic; a phone hotspot usually works.
-
 ### The command line
 
 Any argument switches to command-line mode:
@@ -255,8 +229,6 @@ python main.py --help                                         # all options + th
 | `--check` | | hardware report: GPU, RAM, which models fit | |
 | `--download MODEL` | | only download weights (`all` = every model) | |
 | `--ui` | | open the UI, e.g. `python main.py --ui -m flatbug-s` | |
-| `--share` | | also create a public link to the UI (`https://….gradio.live`, lasts up to a week) that others can open | off |
-| `--lan` | | also let phones / PCs on the same network open the UI (link + QR code in the terminal) | off |
 | `--help` | `-h` | help | |
 
 ### Default settings
@@ -278,12 +250,6 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
-SHARE = False                            # True = the UI also gets a public link + QR code (https://....gradio.live) that
-                                         # others can open; anyone with the link can use the zoo on this computer.
-                                         # Link fails? The terminal says why and how to fix it (often: antivirus),
-                                         # or use LAN = True below instead
-LAN = False                              # True = link + QR code for phones / PCs on the SAME network (Wi-Fi) only
-                                         # (guest / campus Wi-Fi may block it: use a phone hotspot)
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 HF_TOKEN = ""

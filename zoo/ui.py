@@ -5,11 +5,7 @@ Models with several sizes show up once in the lists (e.g. "flat-bug"); picking o
 """
 
 import base64
-import contextlib
-import io
 import os
-import socket
-import sys
 import threading
 from collections import Counter
 
@@ -328,145 +324,16 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     return demo
 
 
-def qr_lines(url):
-    """The URL as a QR code for the terminal: black on white (scans in light and dark terminals), two QR rows per
-    text line using half blocks. None if the qrcode package is missing."""
-    try:
-        import qrcode
-    except ImportError:
-        return None
-    qr = qrcode.QRCode(border=2, error_correction=qrcode.constants.ERROR_CORRECT_M)
-    qr.add_data(url)
-    qr.make(fit=True)
-    m = qr.get_matrix()                          # True = dark module, border included
-    if len(m) % 2:
-        m.append([False] * len(m[0]))
-    chars = {(False, False): " ", (True, True): "█", (True, False): "▀", (False, True): "▄"}
-    return ["\033[30;47m" + "".join(chars[(m[r][c], m[r + 1][c])] for c in range(len(m[0]))) + "\033[0m"
-            for r in range(0, len(m), 2)]
-
-
-def print_qr(url):
-    lines = qr_lines(url)
-    if not lines:
-        print("  (pip install qrcode to also get a QR code here)")
-        return
-    try:
-        import colorama                          # lets older Windows consoles show the black/white colours
-        colorama.just_fix_windows_console()
-    except Exception:
-        pass
-    try:
-        print("  Scan to open it on a phone:\n")
-        for line in lines:
-            print("  " + line)
-        print()
-    except UnicodeEncodeError:                   # a console that cannot show block characters: skip the QR code
-        print("  (this terminal cannot show the QR code)")
-
-
-def lan_address():
-    """This computer's address on the local network (e.g. 192.168.1.23), or None without a network."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))               # UDP: nothing is sent, it only picks the network card in use
-        return s.getsockname()[0]
-    except OSError:
-        return None
-    finally:
-        s.close()
-
-
-def frpc_state(path):
-    """'ok', 'missing' (never downloaded, or deleted by an antivirus) or 'blocked' (an antivirus stops any access)."""
-    if not os.path.exists(path):
-        return "missing"
-    try:
-        with open(path, "rb") as f:
-            f.read(1)
-    except OSError:                              # Windows: "the file contains a virus or potentially unwanted software"
-        return "blocked"
-    return "ok"
-
-
-def share_failed_help():
-    """Why Gradio's public link failed and how to fix it, in plain words (Gradio itself only says: check your
-    internet, which is rarely the problem)."""
-    lan = "  Meanwhile, for phones / PCs on the same network: LAN = True at the top of main.py (or --lan)."
-    try:
-        from gradio.tunneling import BINARY_FOLDER, BINARY_PATH, BINARY_URL
-    except Exception:
-        return "Public link: could not be created.\n" + lan
-    state = frpc_state(BINARY_PATH)
-    if state == "ok":
-        return ("Public link: could not be created. Gradio's link server could not be reached: a firewall or proxy\n"
-                "  blocks it (common on work and campus networks), or it is down (https://status.gradio.app).\n"
-                "  To fix it: try another network (e.g. a phone hotspot), or ask IT to allow Gradio share links.\n"
-                + lan)
-    if state == "missing":
-        try:
-            import requests
-            requests.head(BINARY_URL, timeout=10).raise_for_status()
-        except Exception:
-            return ("Public link: could not be created. Gradio could not download its small tunnel program (frpc):\n"
-                    "  no internet, or a firewall / proxy blocks %s\n%s" % (BINARY_URL, lan))
-    folder = str(BINARY_FOLDER)
-    if sys.platform == "win32":
-        fix = ("  To fix it once (needs admin rights), add this folder as an exclusion in Windows Security >\n"
-               "  Virus & threat protection > Manage settings > Exclusions > Add an exclusion > Folder:\n"
-               "      %s\n"
-               "  or run this in a PowerShell opened as administrator:\n"
-               "      Add-MpPreference -ExclusionPath \"%s\"\n"
-               "  Then start the zoo again. On a work PC managed by IT the exclusion may not stick (the list stays\n"
-               "  empty): then only IT can allow it. Ask them to allow Gradio's frpc in that folder (Windows\n"
-               "  Defender calls it PUA:Win32/FRProxy)." % (folder, folder))
-    else:
-        fix = ("  To fix it: allow this folder in your antivirus, then start the zoo again:\n"
-               "      %s" % folder)
-    return ("Public link: could not be created. Gradio needs a small tunnel program (frpc) that it downloads, and\n"
-            "  your antivirus (e.g. Windows Defender) %s it right after the download. Your internet is fine.\n"
-            "  (Antivirus flags frpc because attackers use the same kind of tunnel tool.)\n%s\n%s"
-            % ("blocked" if state == "blocked" else "deleted", fix, lan))
-
-
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
-           classes=None, share=False, lan=False):
+           classes=None):
     import gradio as gr
 
     demo = build(model, device, threshold, iou, output_dir, example_image, prompt, classifier, classes)
     os.makedirs(output_dir, exist_ok=True)
-    if share:
-        print("\nCreating a public link (needs internet, takes a few seconds) ...")
-    gradio_says = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(gradio_says):   # Gradio's "check your internet" line misleads; see below
-            _, local_url, share_url = demo.queue().launch(
-                inbrowser=True, server_name="0.0.0.0" if lan else "127.0.0.1", server_port=port,
-                allowed_paths=[output_dir], share=share, quiet=True, prevent_thread_lock=True,
-                theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
-    finally:
-        for line in gradio_says.getvalue().splitlines():
-            if "share link" not in line.lower() and "status.gradio.app" not in line:
-                print(line)
+    _, local_url, _ = demo.queue().launch(
+        inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
+        quiet=True, prevent_thread_lock=True,
+        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
     print("\nThe UI is open in your browser: %s" % local_url)
-    if lan:
-        ip = lan_address()
-        if ip:
-            lan_url = "http://%s:%d" % (ip, demo.server_port)
-            print("Same-network link: %s" % lan_url)
-            print("  Phones / PCs on the same network (Wi-Fi) can open it. If Windows asks, allow Python on private\n"
-                  "  networks. Guest / campus Wi-Fi (e.g. eduroam) often blocks this; a phone hotspot usually works.")
-            print_qr(lan_url)
-        else:
-            print("Same-network link: this computer is not on a network.")
-    if share_url:
-        print("Public link: %s" % share_url)
-        print("  It opens this UI (running on this computer) from any device. Anyone with the link can use it;\n"
-              "  it lasts up to a week, or until you stop the zoo.")
-        print_qr(share_url)
-    elif share:
-        print(share_failed_help())
-    else:
-        print("Public link: off (to share the UI with others: SHARE = True at the top of main.py, or --share)")
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
     demo.block_thread()
