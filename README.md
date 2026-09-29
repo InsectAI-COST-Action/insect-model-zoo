@@ -144,7 +144,7 @@ A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a *
 dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so you can press Detect straight away.
 
 - Each model family appears once in the lists, with its tags (e.g. *flat-bug (detector + segmentation)*). Families
-  with several sizes (insectDCT v8, flat-bug, BioCLIP) show size buttons when picked, e.g. N · S · M · L · M v2.
+  with several sizes (insectDCT v8, flat-bug) show size buttons when picked, e.g. N · S · M · L · M v2.
 - Picking a detector also picks its own classifier (insectDCT → `insectdct-cls-v7`, others → `none`); choose any
   other classifier if you like.
 - The text-prompt field unlocks only for detectors that take text (`sam3`: e.g. `bee`), and a names field appears

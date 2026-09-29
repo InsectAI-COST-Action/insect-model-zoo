@@ -22,12 +22,64 @@ NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Names to choose from, e.g. Apis mellifera, Bombus terrestris  (empty = arthropod orders)"
-# always light: Gradio follows the computer's dark mode by adding a "dark" class to the page; keep it off
-ALWAYS_LIGHT_JS = """() => {
-  const light = () => document.body.classList.remove('dark');
-  light();
-  new MutationObserver(light).observe(document.body, {attributes: true, attributeFilter: ['class']});
+CSS = """
+.option-list { max-height: 320px !important; }                      /* long model lists scroll */
+.zoo-pills { display: inline-flex; gap: 4px; margin-left: 8px; flex-shrink: 0; pointer-events: none; }
+.secondary-wrap > .zoo-pills { margin-right: 26px; }                 /* leave room for the dropdown arrow */
+.zoo-pill { padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid;
+            line-height: 1.5; white-space: nowrap; }
+.zoo-pill.detector     { color: #15803d; background: #dcfce7; border-color: #86efac; }   /* green  */
+.zoo-pill.segmentation { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }   /* teal   */
+.zoo-pill.classifier   { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }   /* purple */
+.zoo-pill.hierarchical { color: #4338ca; background: #e0e7ff; border-color: #a5b4fc; }   /* indigo */
+.zoo-pill.zero-shot    { color: #b45309; background: #fef3c7; border-color: #fcd34d; }   /* amber  */
+.zoo-pill.text-prompt  { color: #0369a1; background: #e0f2fe; border-color: #7dd3fc; }   /* blue   */
+.zoo-pill.gated        { color: #be123c; background: #ffe4e6; border-color: #fda4af; }   /* red    */
+"""
+
+# Runs in the browser. Gradio dropdowns only hold plain text, so the tags are added as coloured pills next to each
+# model name: in the open list and in the closed field. Also keeps the page light (Gradio follows the computer's
+# dark mode by adding a "dark" class to the page).
+PAGE_JS = """() => {
+  const TAGS = __TAGS__;
+  const html = tags => tags.map(t => '<span class="zoo-pill ' + t.replace(' ', '-') + '">' + t + '</span>').join('');
+  const put = (parent, before, name) => {
+    let box = parent.querySelector(':scope > .zoo-pills');
+    if (!TAGS[name]) { if (box) box.remove(); return; }
+    if (!box) { box = document.createElement('span'); box.className = 'zoo-pills'; parent.insertBefore(box, before); }
+    if (box.dataset.name !== name) { box.innerHTML = html(TAGS[name]); box.dataset.name = name; }
+  };
+  const ruler = document.createElement('canvas').getContext('2d');
+  const fit = (inp, tagged) => {           // closed field: text box only as wide as the name, pills right after it
+    if (!tagged || document.activeElement === inp) { inp.style.flex = ''; inp.style.width = ''; return; }
+    ruler.font = getComputedStyle(inp).font;
+    inp.style.flex = '0 0 auto';
+    inp.style.width = Math.ceil(ruler.measureText(inp.value).width + 4) + 'px';
+  };
+  const decorate = () => {
+    document.body.classList.remove('dark');
+    document.querySelectorAll('li[role=option]').forEach(li => put(li, null, li.getAttribute('aria-label')));
+    document.querySelectorAll('input[role=combobox]').forEach(inp => {
+      const wrap = inp.parentElement;
+      put(wrap, wrap.querySelector('.icon-wrap'), inp.value);
+      fit(inp, !!TAGS[inp.value]);
+      if (!wrap.dataset.zooClick) {        // a click anywhere in the field still opens the list
+        wrap.dataset.zooClick = '1';
+        wrap.addEventListener('click', e => { if (e.target !== inp) inp.focus(); });
+      }
+    });
+  };
+  new MutationObserver(decorate).observe(document.body, {childList: true, subtree: true, attributes: true,
+                                                         attributeFilter: ['class']});
+  setInterval(decorate, 300);            // the selected value changes without a DOM change
+  decorate();
 }"""
+
+
+def page_js():
+    import json
+    names = {group: tags(cards[0]) for table in (MODELS, CLASSIFIERS) for group, cards in groups(table).items()}
+    return PAGE_JS.replace("__TAGS__", json.dumps(names))
 
 
 def _data_uri(filename, mime):
@@ -55,11 +107,8 @@ def header_html():
 
 
 def family_choices(table, with_none=False):
-    """One entry per model family, with its tags: 'flat-bug  —  detector · segmentation'."""
-    out = [("none", NONE)] if with_none else []
-    for group, cards in groups(table).items():
-        out.append(("%s  (%s)" % (group, " + ".join(tags(cards[0]))), group))
-    return out
+    """One entry per model family (its tags are added as coloured pills by PAGE_JS)."""
+    return ([("none", NONE)] if with_none else []) + [(group, group) for group in groups(table)]
 
 
 def version_choices(group, table):
@@ -110,9 +159,11 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     def on_cls_family(group, det_group):
         detector = group_default(det_group, MODELS)
         if group == NONE:
-            return gr.update(choices=[], value=None, visible=False), gr.update(visible=False), gated_note(detector)
+            return (gr.update(choices=[], value=None, visible=False), gr.update(visible=False),
+                    gated_note(detector))
         card = group_default(group, CLASSIFIERS)
-        return sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)), gated_note(detector, card)
+        return (sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)),
+                gated_note(detector, card))
 
     def run(det_name, cls_name, thr, text, classes_text, image_path):
         """The Detect button itself shows what is going on (download MB, loading, running) until the result is in."""
@@ -189,11 +240,11 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                 value=example_image if example_image and os.path.isfile(example_image) else None)
             image_out = gr.Image(label="Result", interactive=False, height=440, buttons=["download", "fullscreen"])
         with gr.Row():
-            with gr.Column(scale=3, min_width=260):
+            with gr.Column(scale=3, min_width=260), gr.Group():          # one box: list + sizes
                 det_family = gr.Dropdown(family_choices(MODELS), value=first_group, label="Detector")
                 det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
                                      visible=len(groups(MODELS)[first_group]) > 1)
-            with gr.Column(scale=3, min_width=260):
+            with gr.Column(scale=3, min_width=260), gr.Group():
                 cls_family = gr.Dropdown(family_choices(CLASSIFIERS, with_none=True), value=first_cls_group,
                                          label="Classifier")
                 cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
@@ -229,5 +280,5 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
     demo.queue().launch(inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
-                        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=ALWAYS_LIGHT_JS,
-                        css=".option-list { max-height: 320px !important; }")    # long model lists scroll
+                        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(),
+                        css=CSS)

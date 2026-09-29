@@ -180,7 +180,7 @@ _ORDERS = [("Hymenoptera", "Insecta"), ("Diptera", "Insecta"), ("Coleoptera", "I
            ("Isopoda", "Malacostraca")]
 ARTHROPOD_ORDERS = tuple((order, "a photo of Animalia Arthropoda %s %s." % (cls, order)) for order, cls in _ORDERS)
 _BIOCLIP = dict(
-    kind="classifier", family="bioclip", group="BioCLIP", default_threshold=0.0, default_iou=0.0, label="",
+    kind="classifier", family="bioclip", default_threshold=0.0, default_iou=0.0, label="",
     code_url="https://github.com/Imageomics/bioclip-2",
     paper="Gu, Stevens, Campolongo et al. (2025). BioCLIP 2: Emergent Properties from Scaling Hierarchical "
           "Contrastive Learning. arXiv:2505.23883.",
@@ -189,7 +189,7 @@ _BIOCLIP = dict(
     classes=ARTHROPOD_ORDERS,
 )
 _add(name="bioclip-2.5", title="BioCLIP 2.5 Huge (zero-shot, any names)", architecture="ViT-H/14 (open_clip)",
-     variant="2.5 Huge",
+     group="BioCLIP 2.5", variant="Huge",
      task="any names you give (zero-shot); default: arthropod orders",
      weights=WeightFile("open_clip_model.safetensors",
                         ("https://huggingface.co/imageomics/bioclip-2.5-vith14/resolve/"
@@ -200,7 +200,7 @@ _add(name="bioclip-2.5", title="BioCLIP 2.5 Huge (zero-shot, any names)", archit
                  "genera, orders, common names) and it picks the best match for each insect. The strongest BioCLIP.",
      extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2.5-vith14"},
      **_BIOCLIP)
-_add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="ViT-L/14 (open_clip)", variant="2",
+_add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="ViT-L/14 (open_clip)", group="BioCLIP 2", variant="L",
      task="any names you give (zero-shot); default: arthropod orders",
      weights=WeightFile("open_clip_model.safetensors",
                         ("https://huggingface.co/imageomics/bioclip-2/resolve/"
@@ -213,7 +213,7 @@ _add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="V
 
 
 # the version picked when a family is chosen in the UI (otherwise its first model)
-GROUP_DEFAULTS = {"insectDCT v8": "insectdct-v8-m", "flat-bug": "flatbug-m-v2", "BioCLIP": "bioclip-2.5"}
+GROUP_DEFAULTS = {"insectDCT v8": "insectdct-v8-m", "flat-bug": "flatbug-m-v2"}
 
 
 def tags(card):
