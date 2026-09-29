@@ -143,6 +143,8 @@ python main.py
 A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a **Detector** and a **Classifier**
 dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so you can press Detect straight away.
 
+- Each model family appears once in the lists, with its tags (e.g. *flat-bug (detector + segmentation)*). Families
+  with several sizes (insectDCT v8, flat-bug, BioCLIP) show size buttons when picked, e.g. N · S · M · L · M v2.
 - Picking a detector also picks its own classifier (insectDCT → `insectdct-cls-v7`, others → `none`); choose any
   other classifier if you like.
 - The text-prompt field unlocks only for detectors that take text (`sam3`: e.g. `bee`), and a names field appears
@@ -228,16 +230,16 @@ For each image, in `output/<detector>+<classifier>/` (just `output/<detector>/` 
 
 ### Detectors (`-m`)
 
-| Model | Task | Architecture | Weights | Threshold | License | Paper | Code |
+| Model | Tags | Architecture | Weights | Threshold | License | Paper | Code |
 |---|---|---|---|---|---|---|---|
-| `insectdct-v8-m` | detection (+ its classifier by default) | YOLO11m, 1920 px | 39 MB | 0.407 | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
-| `insectdct-v8-s` | detection (+ its classifier by default) | YOLO11s, 1920 px | 18 MB | 0.407 | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
-| `flatbug-n` | detection + segmentation | YOLOv8n-seg, 1024 px tiles | 6 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
-| `flatbug-s` | detection + segmentation | YOLOv8s-seg, 1024 px tiles | 20 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
-| `flatbug-m` | detection + segmentation | YOLOv8m-seg, 1024 px tiles | 47 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
-| `flatbug-l` | detection + segmentation | YOLOv8l-seg, 1024 px tiles | 80 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
-| `flatbug-m-v2` | detection + segmentation | YOLO26m-seg, 1024 px tiles | 52 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
-| `sam3` 🔒 **([Gated](docs/GATED_MODELS.md))** | segmentation of what you type | SAM 3, 848M params, 1008 px | 3.2 GB | 0.5 | SAM License | [arXiv](https://doi.org/10.48550/arXiv.2511.16719) | [sam3](https://github.com/facebookresearch/sam3) |
+| `insectdct-v8-m` | `detector` (+ its classifier by default) | YOLO11m, 1920 px | 39 MB | 0.407 | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
+| `insectdct-v8-s` | `detector` (+ its classifier by default) | YOLO11s, 1920 px | 18 MB | 0.407 | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
+| `flatbug-n` | `detector` `segmentation` | YOLOv8n-seg, 1024 px tiles | 6 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `flatbug-s` | `detector` `segmentation` | YOLOv8s-seg, 1024 px tiles | 20 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `flatbug-m` | `detector` `segmentation` | YOLOv8m-seg, 1024 px tiles | 47 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `flatbug-l` | `detector` `segmentation` | YOLOv8l-seg, 1024 px tiles | 80 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `flatbug-m-v2` | `detector` `segmentation` | YOLO26m-seg, 1024 px tiles | 52 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `sam3` 🔒 **([Gated](docs/GATED_MODELS.md))** | `detector` `segmentation` `text prompt` `gated` | SAM 3, 848M params, 1008 px | 3.2 GB | 0.5 | SAM License | [arXiv](https://doi.org/10.48550/arXiv.2511.16719) | [sam3](https://github.com/facebookresearch/sam3) |
 
 *Threshold* is the default confidence, i.e. the value the authors recommend. Smaller models (s, n) are faster and
 need less memory; larger ones are more accurate. 🔒 **Gated** models are free, but you must request access and add a
@@ -245,11 +247,11 @@ Hugging Face token once. **[How to (5 minutes)](docs/GATED_MODELS.md)**.
 
 ### Classifiers (`-c`)
 
-| Model | Classes | Architecture | Weights | License | Paper | Code |
-|---|---|---|---|---|---|---|
-| `insectdct-cls-v7` | 104 insect taxa, as deep as it is sure: order → family → genus/species | ConvNeXt-Base, 224 px crops | 484 MB | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
-| `bioclip-2.5` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-H/14 | 3.7 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
-| `bioclip-2` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-L/14 | 1.6 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
+| Model | Tags | Classes | Architecture | Weights | License | Paper | Code |
+|---|---|---|---|---|---|---|---|
+| `insectdct-cls-v7` | `classifier` `hierarchical` | 104 insect taxa, as deep as it is sure: order → family → genus/species | ConvNeXt-Base, 224 px crops | 484 MB | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
+| `bioclip-2.5` | `classifier` `zero-shot` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-H/14 | 3.7 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
+| `bioclip-2` | `classifier` `zero-shot` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-L/14 | 1.6 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
 
 Each detected insect is cropped and classified; the result gets a `taxon`, a `taxon_score` (0–1) and, where known,
 a `taxon_rank`. Any detector works with any classifier.
@@ -429,7 +431,9 @@ lines above.
    threshold, memory needs, paper DOI, license. Detectors can name a `default_classifier`. Use `kind="classifier"`
    for classifiers, `classes=(...)` for zero-shot ones (unlocks the names field and `--classes`),
    `text_prompt=True` for text-prompted detectors (unlocks the prompt field and `--prompt`), and
-   `gated="<Hugging Face page>"` for gated models (token handling and help links come free).
+   `gated="<Hugging Face page>"` for gated models (token handling and help links come free). Give sizes/versions of
+   one model the same `group` and their own `variant` (e.g. flat-bug `N`, `S`, `M`): the UI then lists the family once
+   and shows the sizes as buttons. Tags are worked out from these fields.
 2. If it is a new kind of model, add `zoo/families/<family>.py` (see the existing families):
    - a detector: class `Model(card, weights_path, device)` with `predict(image_rgb, threshold, iou, prompt=None)`
      returning a list of `Detection`;

@@ -1,5 +1,8 @@
 """Minimal web UI (Gradio): image in, detector + classifier, threshold, (text prompt / names), result out.
-Started by `python main.py`."""
+Started by `python main.py`.
+
+Models with several sizes show up once in the lists (e.g. "flat-bug"); picking one shows its size buttons.
+"""
 
 import base64
 import os
@@ -7,7 +10,8 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import CLASSIFIERS, GATED_GUIDE_URL, MODELS, get_classifier, get_model, size_text
+from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, get_classifier, get_model, group_default, group_of,
+                       groups, size_text, tags)
 from .weights import GatedModelError, hf_token, is_downloaded
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
@@ -44,8 +48,16 @@ def header_html():
 </div>""".format(insectai=insectai, cost=cost)
 
 
-def _choices(cards):
-    return [(c.name + ("  (gated)" if c.gated else ""), c.name) for c in cards]
+def family_choices(table, with_none=False):
+    """One entry per model family, with its tags: 'flat-bug  —  detector · segmentation'."""
+    out = [("none", NONE)] if with_none else []
+    for group, cards in groups(table).items():
+        out.append(("%s  (%s)" % (group, " + ".join(tags(cards[0]))), group))
+    return out
+
+
+def version_choices(group, table):
+    return [("%s · %s" % (c.variant or c.name, size_text(c.weights.size)), c.name) for c in groups(table)[group]]
 
 
 def build(model, device, threshold, iou, output_dir, example_image, prompt=None, classifier="auto", classes=None):
@@ -60,40 +72,47 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         return PROMPT_OPEN % card.default_prompt if card.text_prompt else PROMPT_LOCKED
 
     def gated_note(*cards):
-        """One line under the model lists, only for gated models, with the link to the how-to."""
+        """One line, only for gated models that are not downloaded yet, with the link to the how-to."""
         notes = []
         for card in cards:
-            if card is None or not card.gated:
+            if card is None or not card.gated or is_downloaded(card):
                 continue
-            if is_downloaded(card):
-                state = "access OK"
-            elif hf_token():
-                state = "token found, first run downloads %s" % size_text(card.weights.size)
-            else:
-                state = "needs free access + a Hugging Face token"
+            state = "token found" if hf_token() else "needs free access + a Hugging Face token"
             notes.append("🔒 **%s is gated**: %s · [How to get access (5 min)](%s)" % (card.name, state,
                                                                                      GATED_GUIDE_URL))
-        return "  \n".join(notes)
+        note = "  \n".join(notes)
+        return gr.update(value=note, visible=bool(note))
 
-    def on_detector_change(name):
+    def sizes(group, table, card):
+        return gr.update(choices=version_choices(group, table), value=card.name, visible=len(groups(table)[group]) > 1)
+
+    def cls_of(group):
+        return None if group == NONE else group_default(group, CLASSIFIERS)
+
+    # handlers read the family dropdowns, not the size buttons (those may still be switching to the new family)
+    def on_det_family(group, cls_group):
+        card = group_default(group, MODELS)
+        pair = get_classifier("auto", card)                  # a detector family's own classifier, or none
+        return (sizes(group, MODELS, card), gr.update(value=group_of(pair) if pair else NONE),
+                gated_note(card, cls_of(cls_group)))
+
+    def on_det_version(name):
         card = get_model(name)
-        pair = get_classifier("auto", card)                  # the detector's own classifier, or none
-        note = gated_note(card, pair)
         return ((threshold if threshold is not None else card.default_threshold),
-                gr.update(interactive=card.text_prompt, placeholder=placeholder(card)),
-                gr.update(value=pair.name if pair else NONE),
-                gr.update(value=note, visible=bool(note)))
+                gr.update(interactive=card.text_prompt, placeholder=placeholder(card)))
 
-    def on_classifier_change(det_name, cls_name):
-        cls = get_classifier(cls_name)
-        note = gated_note(get_model(det_name), cls)
-        return gr.update(visible=bool(cls and cls.classes)), gr.update(value=note, visible=bool(note))
+    def on_cls_family(group, det_group):
+        detector = group_default(det_group, MODELS)
+        if group == NONE:
+            return gr.update(choices=[], value=None, visible=False), gr.update(visible=False), gated_note(detector)
+        card = group_default(group, CLASSIFIERS)
+        return sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)), gated_note(detector, card)
 
     def run(det_name, cls_name, thr, text, classes_text, image_path):
         """The Detect button itself shows what is going on (download MB, loading, running) until the result is in."""
         if not image_path:
             raise gr.Error("Add an image first.")
-        card, cls = get_model(det_name), get_classifier(cls_name)
+        card, cls = get_model(det_name), (CLASSIFIERS.get(cls_name) if cls_name else None)
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
         warnings, result = [], {}
         status = {"text": "Loading %s ... (please wait)" % card.name}
@@ -154,6 +173,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                            os.path.dirname(files[0])))
         yield gr.update(value=files[0], label="%s · %.1f s · %s" % (found, secs, zoo.device)), ready
 
+    first_group = group_of(first)
+    first_cls_group = group_of(first_cls) if first_cls else NONE
     with gr.Blocks(title="InsectAI model zoo") as demo:
         gr.HTML(header_html())
         with gr.Row(equal_height=True):
@@ -162,25 +183,34 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                 value=example_image if example_image and os.path.isfile(example_image) else None)
             image_out = gr.Image(label="Result", interactive=False, height=440, buttons=["download", "fullscreen"])
         with gr.Row():
-            det_dd = gr.Dropdown(_choices(MODELS.values()), value=first.name, label="Detector", scale=1)
-            cls_dd = gr.Dropdown([("none", NONE)] + _choices(CLASSIFIERS.values()),
-                                 value=first_cls.name if first_cls else NONE, label="Classifier", scale=1)
-            thr = gr.Slider(0.01, 0.99, step=0.01, label="Threshold", scale=2,
-                            value=threshold if threshold is not None else first.default_threshold)
-        note = gated_note(first, first_cls)
-        gated_md = gr.Markdown(note, visible=bool(note))
+            with gr.Column(scale=3, min_width=260):
+                det_family = gr.Dropdown(family_choices(MODELS), value=first_group, label="Detector")
+                det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
+                                     visible=len(groups(MODELS)[first_group]) > 1)
+            with gr.Column(scale=3, min_width=260):
+                cls_family = gr.Dropdown(family_choices(CLASSIFIERS, with_none=True), value=first_cls_group,
+                                         label="Classifier")
+                cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
+                                     value=first_cls.name if first_cls else None, show_label=False,
+                                     visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
+            with gr.Column(scale=2, min_width=220):
+                thr = gr.Slider(0.01, 0.99, step=0.01, label="Threshold",
+                                value=threshold if threshold is not None else first.default_threshold)
+        gated_md = gr.Markdown(visible=False)
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
         classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1, placeholder=CLASSES_HINT,
                                  visible=bool(first_cls and first_cls.classes))
         run_btn = gr.Button(DETECT, variant="primary")
 
-        det_dd.change(on_detector_change, det_dd, [thr, text, cls_dd, gated_md])
-        cls_dd.change(on_classifier_change, [det_dd, cls_dd], [classes_box, gated_md])
-        inputs = [det_dd, cls_dd, thr, text, classes_box, image_in]
+        det_family.change(on_det_family, [det_family, cls_family], [det_sizes, cls_family, gated_md])
+        det_sizes.change(on_det_version, det_sizes, [thr, text])
+        cls_family.change(on_cls_family, [cls_family, det_family], [cls_sizes, classes_box, gated_md])
+        inputs = [det_sizes, cls_sizes, thr, text, classes_box, image_in]
         run_btn.click(run, inputs, [image_out, run_btn], show_progress="hidden")
         text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
         classes_box.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
+        demo.load(lambda d, c: gated_note(group_default(d, MODELS), cls_of(c)), [det_family, cls_family], gated_md)
     return demo
 
 
