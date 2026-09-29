@@ -127,9 +127,23 @@ python main.py --check
 ```
 
 Your prompt now starts with `(.venv)`. **In a new terminal, activate again** before running the zoo (Windows: the
-`Set-ExecutionPolicy` and `Activate.ps1` lines; macOS / Linux: `source .venv/bin/activate`). To never see the Windows
-*running scripts is disabled* error again, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+`Set-ExecutionPolicy` and `Activate.ps1` lines; macOS / Linux: `source .venv/bin/activate`).
 In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
+
+> [!TIP]
+> **Windows: "Activate.ps1 cannot be loaded because running scripts is disabled on this system"?**
+> Windows PowerShell blocks activation scripts by default. Running `activate.bat` does not help either: in PowerShell
+> it runs in a separate cmd process, so nothing gets activated in your window. The quickest fix only affects this one
+> terminal window and changes no system settings. Run these two lines:
+>
+> ```powershell
+> Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+> .\.venv\Scripts\Activate.ps1
+> ```
+>
+> Your prompt should then start with `(.venv)`. You need the first line again in every new terminal. To stop the
+> error for good for your user account, run this once instead (a work PC may block it):
+> `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
 On Linux the default PyTorch already includes NVIDIA GPU support; on a Mac the Apple GPU is used automatically. For an
 older NVIDIA driver on Windows, see [GPU](#getting-the-gpu-to-work).
@@ -438,7 +452,7 @@ lines above.
 | Problem | Fix |
 |---|---|
 | `python` is not recognized / opens the Microsoft Store | Python is not on the PATH; see [Prerequisites](#prerequisites) |
-| `Activate.ps1 cannot be loaded because running scripts is disabled` | this window only: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`; for good: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Then activate again |
+| `Activate.ps1 cannot be loaded because running scripts is disabled` | see the tip under [Installation](#installation) |
 | `error: externally-managed-environment` | the virtual environment is not active: activate `.venv` first |
 | `DLL load failed ... The filename or extension is too long` (Windows) | the folder path is too long: move the project to e.g. `C:\code\Insect_model_zoo`, delete `.venv` and create it again |
 | `ImportError: libGL.so.1` (Linux server / WSL) | `sudo apt install libgl1 libglib2.0-0` |
