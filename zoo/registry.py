@@ -260,10 +260,6 @@ _add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="V
      **_BIOCLIP)
 
 
-# the version picked when a family is chosen in the UI (otherwise its first model)
-GROUP_DEFAULTS = {"insectDCT v8": "insectdct-v8-m", "flat-bug": "flatbug-m-v2"}
-
-
 def tags(card):
     """Short labels shown as coloured tags in the UI and in the model lists."""
     if card.kind == "classifier":
@@ -297,8 +293,8 @@ def display_name(card):
 
 
 def group_default(group, table):
-    name = GROUP_DEFAULTS.get(group)
-    return table[name] if name in table else groups(table)[group][0]
+    """The version picked when a family is chosen in the UI: the largest one (usually the most accurate)."""
+    return max(groups(table)[group], key=lambda card: card.weights.size)
 
 
 def _lookup(name, table, what):

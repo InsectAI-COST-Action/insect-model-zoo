@@ -184,7 +184,8 @@ A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a *
 dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so you can press Detect straight away.
 
 - Each model family appears once in the lists, with its tags (e.g. *flat-bug (detector + segmentation)*). Families
-  with several sizes (insectDCT v8, flat-bug) show size buttons when picked, e.g. N · S · M · L · M v2.
+  with several sizes (insectDCT v8, flat-bug) show size buttons when picked, e.g. N · S · M · L · M v2; the largest
+  is selected by default.
 - Picking a detector also picks its own classifier (insectDCT → `insectdct-cls-v7`, others → `none`); choose any
   other classifier if you like.
 - The text-prompt field unlocks only for detectors that take text (`sam3`: e.g. `bee`), and a names field appears
@@ -490,7 +491,7 @@ use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
    `text_prompt=True` for text-prompted detectors (unlocks the prompt field and `--prompt`), and
    `gated="<Hugging Face page>"` for gated models (token handling and help links come free). Give sizes/versions of
    one model the same `group` and their own `variant` (e.g. flat-bug `N`, `S`, `M`): the UI then lists the family once
-   and shows the sizes as buttons. Tags are worked out from these fields.
+   and shows the sizes as buttons, with the largest selected by default. Tags are worked out from these fields.
 2. If it is a new kind of model, add `zoo/families/<family>.py` (see the existing families):
    - a detector: class `Model(card, weights_path, device)` with `predict(image_rgb, threshold, iou, prompt=None)`
      returning a list of `Detection`;

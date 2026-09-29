@@ -157,6 +157,12 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     zoo = Zoo(device)
     first = get_model(model)
     first_cls = get_classifier(classifier, first)
+    for note in zoo.hw.notes:          # e.g. "NVIDIA GPU found but the CPU-only PyTorch is installed"
+        print("NOTE: " + note)
+
+    def hardware_notes():               # the same notes as a popup in the browser, once per page load
+        for note in zoo.hw.notes:
+            gr.Warning(note, duration=30)
 
     def placeholder(card):
         return PROMPT_OPEN % card.default_prompt if card.text_prompt else PROMPT_LOCKED
@@ -309,6 +315,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
         classes_box.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
         demo.load(lambda d, c: gated_note(group_default(d, MODELS), cls_of(c)), [det_family, cls_family], gated_md)
+        demo.load(hardware_notes)
     return demo
 
 
