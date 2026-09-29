@@ -22,6 +22,12 @@ NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Names to choose from, e.g. Apis mellifera, Bombus terrestris  (empty = arthropod orders)"
+# always light: Gradio follows the computer's dark mode by adding a "dark" class to the page; keep it off
+ALWAYS_LIGHT_JS = """() => {
+  const light = () => document.body.classList.remove('dark');
+  light();
+  new MutationObserver(light).observe(document.body, {attributes: true, attributeFilter: ['class']});
+}"""
 
 
 def _data_uri(filename, mime):
@@ -223,5 +229,5 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
     demo.queue().launch(inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
-                        theme=gr.themes.Soft(primary_hue="green"), footer_links=[],
+                        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=ALWAYS_LIGHT_JS,
                         css=".option-list { max-height: 320px !important; }")    # long model lists scroll
