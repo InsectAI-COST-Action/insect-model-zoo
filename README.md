@@ -96,39 +96,43 @@ python3 --version     # macOS / Linux  -> must say 3.11 or higher
 
 ## Installation
 
-**1. Download the repository**
+Copy the block for your system into a terminal (Windows: *PowerShell*, e.g. the VS Code terminal; macOS: *Terminal*).
+It downloads the zoo, creates a virtual environment `.venv` (a private Python folder for this project, so nothing
+clashes with other projects), installs everything and checks your hardware.
+
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
+cd Insect_model_zoo
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # lets this window run the activate script
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130   # NVIDIA GPU only
+python -m pip install -r requirements.txt
+python main.py --check
+```
+
+**macOS / Linux**
 
 ```bash
 git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
 cd Insect_model_zoo
-```
-
-**2. Create and activate a virtual environment** (a private Python folder `.venv` for this project, so nothing clashes
-with other projects)
-
-| Windows (PowerShell) | macOS / Linux |
-|---|---|
-| `python -m venv .venv` | `python3 -m venv .venv` |
-| `.\.venv\Scripts\Activate.ps1` | `source .venv/bin/activate` |
-
-Your prompt now starts with `(.venv)`. **Activate again every time you open a new terminal.** If PowerShell says
-*running scripts is disabled*, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then activate again.
-In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
-
-**3. (NVIDIA GPU on Windows only) install the GPU version of PyTorch first**, see [GPU](#gpu--cpu-and-hardware-check).
-
-**4. Install the requirements**
-
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-**5. Check that everything is found**
-
-```bash
 python main.py --check
 ```
+
+Your prompt now starts with `(.venv)`. **In a new terminal, activate again** before running the zoo (Windows: the
+`Set-ExecutionPolicy` and `Activate.ps1` lines; macOS / Linux: `source .venv/bin/activate`). To never see the Windows
+*running scripts is disabled* error again, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+In VS Code: *Ctrl+Shift+P → "Python: Select Interpreter" → .venv*.
+
+On Linux the default PyTorch already includes NVIDIA GPU support; on a Mac the Apple GPU is used automatically. For an
+older NVIDIA driver on Windows, see [GPU](#getting-the-gpu-to-work).
 
 ---
 
@@ -434,7 +438,7 @@ lines above.
 | Problem | Fix |
 |---|---|
 | `python` is not recognized / opens the Microsoft Store | Python is not on the PATH; see [Prerequisites](#prerequisites) |
-| `Activate.ps1 cannot be loaded because running scripts is disabled` | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then activate again |
+| `Activate.ps1 cannot be loaded because running scripts is disabled` | this window only: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`; for good: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Then activate again |
 | `error: externally-managed-environment` | the virtual environment is not active: activate `.venv` first |
 | `DLL load failed ... The filename or extension is too long` (Windows) | the folder path is too long: move the project to e.g. `C:\code\Insect_model_zoo`, delete `.venv` and create it again |
 | `ImportError: libGL.so.1` (Linux server / WSL) | `sudo apt install libgl1 libglib2.0-0` |
