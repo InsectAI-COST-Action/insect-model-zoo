@@ -145,23 +145,109 @@ li[role="option"]:has(> .zoo-pills),
   color: var(--zoo-green-text);
 }
 
-/* the header: the InsectAI and COST logos with the title, wrapping on a narrow page */
+/* the header: a compact top bar; the logos and the title, wrapping on a narrow page */
+/* Gradio pads every block (--block-padding: 16px) and the page (.main) too, and spaces blocks apart
+   (--layout-gap: 16px): that is the white space around the top bar. The theme's <style> block is
+   invisible but still takes a block's worth of room - hide it (the styles inside still apply). The
+   header itself sits in an .html-container with the same padding: take that off, so the bar is exactly
+   as tall as the logos. */
+.zoo-theme,
+.block:has(.zoo-theme) {
+  display: none !important;
+}
+
+.zoo-header-block,
+.block:has(.zoo-header) {
+  padding: 0 !important;
+}
+
+.zoo-header-block .html-container,
+.block:has(.zoo-header) .html-container {
+  padding: 0 !important;
+}
+
+.main {
+  padding-top: 2px !important;
+}
+
 .zoo-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  padding: 6px 0;
 }
 
+/* the InsectAI mark left of the title: the green disc from the favicon */
 .zoo-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0px;
 }
 
-.zoo-logo {
-  height: 56px;
+.zoo-header-icon {
+  height: 34px;
+  width: 34px;
+}
+
+/* the moon / sun button on the right of the top bar: a round icon button; the icon follows body.dark */
+.zoo-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0 !important; /* Gradio's .gradio-style button rule pads every button */
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--zoo-list-border);
+  box-shadow: none !important; /* Gradio shadows every button: an outline is enough here */
+  background: transparent !important;
+  color: var(--zoo-text-dim) !important;
+  cursor: pointer;
+  line-height: 0;
+}
+
+/* dark page: a light icon on the dark button (!important: Gradio's own button colour rule would win) */
+body.dark .zoo-theme-btn {
+  color: #e5e7eb !important;
+}
+
+.zoo-theme-btn:hover {
+  background: var(--zoo-green-bg-soft);
+}
+
+.zoo-theme-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* light page: the moon (click for dark); dark page: the sun (click for light). The swap and the stroke
+   are forced (!important, and on the shapes: their stroke="currentColor" inherits Gradio's own text
+   colour, which paints them invisible in dark mode) */
+.zoo-theme-btn .zoo-icon-sun {
+  display: none !important;
+}
+
+body.dark .zoo-theme-btn .zoo-icon-sun {
+  display: block !important;
+}
+
+.zoo-theme-btn .zoo-icon-moon {
+  display: block !important;
+}
+
+body.dark .zoo-theme-btn .zoo-icon-moon {
+  display: none !important;
+}
+
+.zoo-theme-btn svg * {
+  stroke: var(--zoo-text-dim) !important;
+}
+
+body.dark .zoo-theme-btn svg * {
+  stroke: #e5e7eb !important;
 }
 
 .zoo-title {
@@ -169,17 +255,47 @@ li[role="option"]:has(> .zoo-pills),
   font-weight: 600;
 }
 
-/* the COST and EU logos side by side in one white badge */
-.zoo-cost {
+/* one small rounded tile per footer logo: the page's own background in light mode, a dark card in dark */
+.zoo-tile {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   background: var(--zoo-page-bg);
-  border-radius: 8px;
-  padding: 4px 10px;
+  border-radius: 12px;
+  padding: 8px 14px;
   line-height: 0;
 }
 
-.zoo-cost-logo {
-  height: 36px;
+/* the footer: the three logos, centred at the bottom, bigger than the top bar ever had them */
+.zoo-footer-block,
+.block:has(.zoo-footer) {
+  padding: 0 !important;
+}
+
+.zoo-footer-block .html-container,
+.block:has(.zoo-footer) .html-container {
+  padding: 0 !important;
+}
+
+.zoo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 14px 0 8px;
+}
+
+.zoo-footer .zoo-logo {
+  height: 56px;
+}
+
+.zoo-footer .zoo-cost-logo {
+  height: 40px;
+}
+
+/* the image previews: tall on a big window, but capped by the window's height so the page (now with the
+   footer's logos at the bottom) never grows taller than the screen. The -55px makes room for the footer;
+   side panels - vertical tabs, devtools - take width away, not height */
+.zoo-image {
+  height: clamp(200px, calc(38vh - 62px), 440px) !important;
 }

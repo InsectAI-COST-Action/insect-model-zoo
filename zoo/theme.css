@@ -1,14 +1,15 @@
 /* The theme of the model-zoo page: every colour and font size in one place, as CSS variables. ui.css (the
-   layout and shapes) reads them, so a value changed here moves the whole page. The page is always light:
-   the script in ui.py keeps taking Gradio's "dark" body class off. */
+   layout and shapes) reads them, so a value changed here moves the whole page. The page starts light
+   (the script in ui.py takes Gradio's "dark" body class off); the moon button in the top bar adds it,
+   and body.dark below swaps the palette for Gradio's dark one. */
 :root {
   /* font sizes */
   --zoo-font-pill: .72rem; /* the tag pills next to the model names */
   --zoo-font-hint: .85rem; /* the hint under the image */
-  --zoo-font-title: 1.35rem; /* the "Model zoo" title in the header */
+  --zoo-font-title: 1.3rem; /* the "InsectAI Model Zoo" title in the top bar */
 
   /* shades of the page */
-  --zoo-page-bg: #fff; /* the open model list, the COST badge, the rim of the slider handle */
+  --zoo-page-bg: #fff; /* the open model list, the footer tiles, the rim of the slider handle */
   --zoo-list-border: #e2e8f0; /* the border of the open model list */
   --zoo-list-shadow: 0 12px 28px rgba(15, 23, 42, .12);
   --zoo-divider: #e8edf3; /* the line between two models in the list */
@@ -22,6 +23,22 @@
   --zoo-green-border: #86efac;
   --zoo-green-bar: #22c55e; /* the bar on the left of the selected row */
   --zoo-handle-shadow: 0 1px 4px rgba(15, 23, 42, .35);
+  --zoo-green-brand: #2fb44a; /* the green disc of the InsectAI icon: the title's "InsectAI" matches it */
+}
+
+/* dark mode (the moon button): the same variables, re-tuned for Gradio's dark palette. The tag pills
+   keep their light colours on purpose: they are self-contained chips, readable either way. */
+body.dark {
+  --zoo-page-bg: #1f2937;
+  --zoo-list-border: #374151;
+  --zoo-list-shadow: 0 12px 28px rgba(0, 0, 0, .5);
+  --zoo-divider: #374151;
+  --zoo-text-dim: #9ca3af;
+  --zoo-green-text: #4ade80;
+  --zoo-green-bg-soft: #14532d;
+  --zoo-green-bg: #166534;
+  --zoo-green-border: #15803d;
+  --zoo-handle-shadow: 0 1px 4px rgba(0, 0, 0, .6);
 }
 
 /* the tag pills: each model type picks its own colours, used by .zoo-pill in ui.css */
@@ -75,7 +92,18 @@
   --pill-border: #fda4af;
 }
 
-/* the COST svg is white artwork: flip it to black so it shows on the white badge */
+/* the "InsectAI" in the top bar title: the same green as the icon next to it. !important: Gradio's
+   .prose * rule would otherwise force every element in the header back to the body text colour */
+.zoo-green {
+  color: var(--zoo-green-brand) !important;
+}
+
+/* the COST svg is white artwork: flipped to black on the light tile; in dark the tile is dark, so the
+   white wordmark shows as it comes */
 .zoo-logo-cost {
   filter: invert(1);
+}
+
+body.dark .zoo-logo-cost {
+  filter: none;
 }

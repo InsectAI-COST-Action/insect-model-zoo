@@ -40,8 +40,8 @@ def _theme_style():
     changes to the browser as they happen, without re-running the app."""
     return "<style>%s</style>" % _page_css("theme.css")
 # Runs in the browser. Gradio dropdowns only hold plain text, so the tags are added as coloured pills next to each
-# model name: in the open list and in the closed field. Also keeps the page light (Gradio follows the computer's
-# dark mode by adding a "dark" class to the page).
+# model name: in the open list and in the closed field. Also keeps the page light until the moon button (in the top
+# bar) switches it to dark - Gradio follows the computer's dark mode by adding a "dark" class to the page.
 PAGE_JS = """() => {
   const TAGS = __TAGS__;
   const html = tags => tags.map(t => '<span class="zoo-pill ' + t.replace(' ', '-') + '">' + t + '</span>').join('');
@@ -86,16 +86,22 @@ PAGE_JS = """() => {
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
     fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
   };
-  // The page is always light (the CSS hard-codes light colours): take Gradio's 'dark' body class off.
-  // Guarded: classList.remove() of a token that is not there still queues an attribute mutation record
-  // once the class attribute exists, and this page observes class changes - an unguarded remove() here
+  // The page starts light, whatever the computer's dark mode (Gradio follows it by adding a "dark" class
+  // to the page): keep taking that class off until the visitor asks for dark with the moon button in the
+  // top bar - then guard it the other way, so nothing takes it back off.
+  // Guarded: classList changes of a token that is not there still queue an attribute mutation record
+  // once the class attribute exists, and this page observes class changes - an unguarded change here
   // would make the observer fire forever, freezing the tab (Firefox and Chromium, dark mode).
-  const undark = () => {
-    if (document.body.classList.contains('dark'))
-      document.body.classList.remove('dark');
+  let dark = false;
+  const themeBtn = document.getElementById('zoo-theme-btn');
+  if (themeBtn)
+    themeBtn.addEventListener('click', () => { dark = !dark; document.body.classList.toggle('dark', dark); });
+  const settle = () => {
+    if (dark !== document.body.classList.contains('dark'))
+      document.body.classList.toggle('dark', dark);
   };
-  undark();
-  new MutationObserver(undark).observe(document.body, {attributes: true, attributeFilter: ['class']});
+  settle();
+  new MutationObserver(settle).observe(document.body, {attributes: true, attributeFilter: ['class']});
   new MutationObserver(decorate).observe(document.body, {childList: true, subtree: true, attributes: true,
                                                          attributeFilter: ['class']});
   setInterval(decorate, 300);            // the selected value changes without a DOM change
@@ -118,19 +124,45 @@ def _data_uri(filename, mime):
         return "data:%s;base64,%s" % (mime, base64.b64encode(f.read()).decode("ascii"))
 
 
+SUN_ICON = """<svg class="zoo-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line>
+  <line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line>
+  <line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>"""
+MOON_ICON = """<svg class="zoo-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>"""
+
+
 def header_html():
+    icon = _data_uri("InsectAI_icon.svg", "image/svg+xml")
+    return """
+<div class="zoo-header">
+  <div class="zoo-brand">
+    <a href="https://insectai.eu/" target="_blank"><img src="%s" alt="InsectAI" class="zoo-header-icon"></a>
+    <span class="zoo-title"><span class="zoo-green">InsectAI</span> Model Zoo</span>
+  </div>
+  <button id="zoo-theme-btn" class="zoo-theme-btn" title="Dark / light" aria-label="Switch between dark and light">
+    %s%s
+  </button>
+</div>""" % (icon, MOON_ICON, SUN_ICON)
+
+
+def footer_html():
+    """The three logos at the bottom of the page: one small rounded tile each, equidistant."""
     insectai = _data_uri("logo_insectai.svg", "image/svg+xml")
     cost = _data_uri("logo_cost.svg", "image/svg+xml")
     eu = _data_uri("logo_eu.svg", "image/svg+xml")
     return """
-<div class="zoo-header">
-  <div class="zoo-brand">
-    <a href="https://insectai.eu/" target="_blank"><img src="{insectai}" alt="InsectAI" class="zoo-logo"></a>
-    <span class="zoo-title">Model zoo</span>
-  </div>
-  <a href="https://www.cost.eu/actions/CA22129/" target="_blank" class="zoo-cost">
-    <img src="{cost}" alt="COST" class="zoo-cost-logo zoo-logo-cost"><img src="{eu}" alt="Funded by the European Union"
-         class="zoo-cost-logo"></a>
+<div class="zoo-footer">
+  <a href="https://insectai.eu/" target="_blank" class="zoo-tile">
+    <img src="{insectai}" alt="InsectAI" class="zoo-logo"></a>
+  <a href="https://www.cost.eu/actions/CA22129/" target="_blank" class="zoo-tile">
+    <img src="{cost}" alt="COST" class="zoo-cost-logo zoo-logo-cost"></a>
+  <div class="zoo-tile">
+    <img src="{eu}" alt="Funded by the European Union" class="zoo-cost-logo"></div>
 </div>""".format(insectai=insectai, cost=cost, eu=eu)
 
 
@@ -323,34 +355,34 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     first_group = group_of(first)
     first_cls_group = group_of(first_cls) if first_cls else NONE
     with gr.Blocks(title="InsectAI model zoo") as demo:
-        theme = gr.HTML(_theme_style())   # the colours of the page, swapped in live by the timer below
+        theme = gr.HTML(_theme_style(), elem_classes="zoo-theme")   # the colours, swapped in live by the timer below
         live = gr.Timer(1)                # re-read theme.css every second: colour edits show up without a re-run
         live.tick(lambda: gr.update(value=_theme_style()), None, theme, trigger_mode="once")
-        gr.HTML(header_html())
+        gr.HTML(header_html(), elem_classes="zoo-header-block")
         example = example_image if example_image and os.path.isfile(example_image) else None
         with gr.Row(equal_height=True):
             with gr.Column():
-                image_in = gr.Image(type="filepath", label="Your image", sources=["upload", "clipboard"], height=440,
+                image_in = gr.Image(type="filepath", elem_classes="zoo-image", label="Your image", sources=["upload", "clipboard"], height=440,
                                     buttons=["fullscreen"], value=example)
                 gr.Markdown(("**Click the image or drag your own photo onto it** to analyse yours (this is just a "
                              "sample)." if example else "**Click or drag a photo here** to get started."),
                             elem_classes="upload-hint")
             with gr.Column():
-                image_out = gr.Image(label="Result", interactive=False, height=440,
+                image_out = gr.Image(label="Result", elem_classes="zoo-image", interactive=False, height=440,
                                      buttons=["download", "fullscreen"])
         with gr.Row():
-            with gr.Column(scale=3, min_width=260), gr.Group():          # one box: list + sizes
+            with gr.Column(scale=3, min_width=220), gr.Group():          # one box: list + sizes
                 det_family = gr.Dropdown(family_choices(MODELS, none_label="whole image (classifier only)"),
                                          value=first_group, label="Detector")
                 det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
                                      visible=len(groups(MODELS)[first_group]) > 1)
-            with gr.Column(scale=3, min_width=260), gr.Group():
+            with gr.Column(scale=3, min_width=220), gr.Group():
                 cls_family = gr.Dropdown(family_choices(CLASSIFIERS, none_label="none"), value=first_cls_group,
                                          label="Classifier")
                 cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
                                      value=first_cls.name if first_cls else None, show_label=False,
                                      visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
-            with gr.Column(scale=3, min_width=260):
+            with gr.Column(scale=3, min_width=220):
                 thr = gr.Slider(0.01, 0.99, step=0.01, label="Detection confidence", elem_classes="zoo-slider",
                                 value=threshold if threshold is not None else first.default_threshold,
                                 info="Boxes below this are dropped")
@@ -365,6 +397,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                  placeholder=CLASSES_HINT % bioclip_empty_text(),
                                  visible=bool(first_cls and first_cls.classes))
         run_btn = gr.Button(DETECT, variant="primary")
+        gr.HTML(footer_html(), elem_classes="zoo-footer-block")
 
         det_family.change(on_det_family, [det_family, cls_family], [det_sizes, cls_family, gated_md, thr, text])
         det_sizes.change(on_det_version, det_sizes, [thr, text])
@@ -389,7 +422,7 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
     os.makedirs(output_dir, exist_ok=True)
     _, local_url, _ = demo.queue().launch(
         inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
-        quiet=True, prevent_thread_lock=True,
+        quiet=True, prevent_thread_lock=True, favicon_path=os.path.join(HERE, "assets", "InsectAI_icon.svg"),
         theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
     print("\nThe UI is open in your browser: %s" % local_url)
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
