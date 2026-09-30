@@ -25,6 +25,9 @@
   --zoo-list-hover: #f0f0ea;
   --zoo-list-selected: #e8e8e0;
 
+  /* the unfilled part of a slider track: the card's own shade, a touch darker (never a pure grey) */
+  --zoo-slider-track: #e9e8df;
+
   /* the green accent (model-db: --accent / --accent-dim). The bright brand green stays with the
      logo, the title's "InsectAI" and the Detect button; everything else uses the calm one */
   --zoo-green-text: #2f6f4e; /* emphasised text, the detector pill, the live slider value */
@@ -32,7 +35,6 @@
   --zoo-green-bg: #d9e8df; /* the detector pill */
   --zoo-green-bg-soft: #e8f0ea; /* the live slider value box */
   --zoo-green-border: #b9d4c3;
-  --zoo-handle-shadow: 0 1px 4px rgba(20, 20, 17, .35);
   --zoo-veil: rgba(20, 20, 17, .72); /* the hover veil over a filled image tile: the palette's warm dark */
   --zoo-green-brand: #2fb44a; /* the green disc of the InsectAI icon: the title's "InsectAI" matches it */
 
@@ -48,6 +50,8 @@
   --body-background-fill: var(--background-fill-primary); /* Gradio reads this one for the body */
   --body-text-color: var(--zoo-text-primary); /* Gradio's own text follows the two zoo greys */
   --body-text-color-subdued: var(--zoo-text-secondary);
+  --block-title-text-color: var(--zoo-green-soft); /* the subcard titles (sliders, text fields) - the
+                                                     two main card titles keep their own ui.css rule */
   --input-background-fill: #ffffff;
   --input-border-color: var(--zoo-border);
   --input-radius: 12px; /* the closed model field and the text inputs, rounder like the cards */
@@ -75,12 +79,13 @@ body.dark,
   --zoo-list-hover: #23272d;
   --zoo-list-selected: #2b3037;
 
+  --zoo-slider-track: #282b31; /* the unfilled part of a slider: the card's shade, a touch lighter */
+
   --zoo-green-text: #7fc4a0;
   --zoo-green-soft: #7fc4a0;
   --zoo-green-bg: #294233;
   --zoo-green-bg-soft: #22322a;
   --zoo-green-border: #3a5a48;
-  --zoo-handle-shadow: 0 1px 4px rgba(0, 0, 0, .6);
   --zoo-veil: rgba(5, 6, 8, .8);
 
   --background-fill-primary: #16171a;
@@ -94,6 +99,7 @@ body.dark,
   --body-background-fill: var(--background-fill-primary);
   --body-text-color: var(--zoo-text-primary);
   --body-text-color-subdued: var(--zoo-text-secondary);
+  --block-title-text-color: var(--zoo-green-soft);
   --input-background-fill: #24272c;
   --input-border-color: var(--zoo-border);
   --input-radius: 12px;

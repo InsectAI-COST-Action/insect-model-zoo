@@ -440,7 +440,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                     det_family = gr.Dropdown(family_choices(MODELS, none_label="whole image (classifier only)"),
                                              value=first_group, label="Detector", elem_classes="zoo-main")
                     det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
-                                         visible=len(groups(MODELS)[first_group]) > 1)
+                                         visible=len(groups(MODELS)[first_group]) > 1, elem_classes="zoo-sizes")
                 thr = gr.Slider(0.01, 0.99, step=0.01, label="Detection confidence", elem_classes="zoo-slider",
                                 value=threshold if threshold is not None else first.default_threshold,
                                 info="Boxes below this are dropped")
@@ -452,7 +452,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                              label="Classifier", elem_classes="zoo-main")
                     cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
                                          value=first_cls.name if first_cls else None, show_label=False,
-                                         visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
+                                         visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1,
+                                         elem_classes="zoo-sizes")
                 first_slider = cls_slider(first_cls)
                 cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
                                     value=first_slider["value"], info=first_slider["info"], visible=bool(first_cls))

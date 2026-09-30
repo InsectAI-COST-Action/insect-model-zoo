@@ -105,13 +105,16 @@ li[role="option"]:has(> .zoo-pills),
   text-align: center;
 }
 
-/* confidence sliders: an oval (pill) track with a round handle the same green as the track's filled part
-   (--slider-color: it flips with the theme on its own); the value box on the right updates live */
+/* confidence sliders: an oval (pill) track with a round handle the same green as the track's filled
+   part (--slider-color, from theme.css); the value box on the right updates live */
 .zoo-slider input[type="range"] {
   height: 10px;
   border-radius: 999px;
 }
 
+/* the handle: a plain green circle ringed with the card's own colour. Gradio's thumb rule also paints
+   a thin 1px box-shadow ring (#f7f6f6) around it - the "artefact border" - and its selector has the
+   same weight as this one, so the shadow is forced off here, drop shadow included: a flat handle */
 .zoo-slider input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -119,16 +122,28 @@ li[role="option"]:has(> .zoo-pills),
   height: 20px;
   border-radius: 50%;
   background: var(--slider-color);
-  border: 2px solid var(--zoo-page-bg);
-  box-shadow: var(--zoo-handle-shadow);
+  border: 2px solid var(--block-background-fill) !important; /* the card's colour, either theme */
+  box-shadow: none !important;
 }
 
 .zoo-slider input[type="range"]::-moz-range-thumb {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--zoo-page-bg);
+  border: 2px solid var(--block-background-fill) !important;
   border-radius: 50%;
   background: var(--slider-color);
+  box-shadow: none !important;
+}
+
+/* the unfilled part of the track: Gradio paints it --neutral-200, a pure grey - the page's own shade
+   instead (theme.css: a touch darker than the card on light, a touch lighter on dark) */
+.zoo-slider input[type="range"]::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--slider-color) var(--range_progress),
+                              var(--zoo-slider-track) var(--range_progress)) !important;
+}
+
+.zoo-slider input[type="range"]::-moz-range-track {
+  background-color: var(--zoo-slider-track) !important;
 }
 
 /* the model fields' text sits a little further from the field's border - padding inside the input, so
@@ -156,6 +171,26 @@ input[role="combobox"] {
   border-radius: 999px !important;
   background: var(--zoo-green-bg-soft) !important;
   border: 1px solid var(--zoo-green-border) !important;
+  /* no up/down spinners: the browser's own arrows carry a grey background that cannot be recoloured,
+     only removed - the value stays editable, and the reset button is still there */
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+/* the model size buttons (the radios under the two model lists): text in the calm green, the selected
+   one marked with the page's green family, a hover like the model list's rows */
+.zoo-sizes label {
+  color: var(--zoo-green-soft) !important;
+}
+
+.zoo-sizes label:hover {
+  background: var(--zoo-list-hover) !important;
+}
+
+.zoo-sizes label.selected {
+  color: var(--zoo-green-text) !important;
+  background: var(--zoo-green-bg-soft) !important;
+  border-color: var(--zoo-green-border) !important;
 }
 
 /* the two image tiles: no gradio label chip - the empty state is the centered overlay built by the page
