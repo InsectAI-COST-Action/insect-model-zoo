@@ -147,8 +147,9 @@ li[role="option"]:has(> .zoo-pills),
 
 /* the header: a compact top bar; the logos and the title, wrapping on a narrow page */
 /* Gradio pads every block (--block-padding: 16px) and the page (.main) too, and spaces blocks apart
-   (--layout-gap: 16px): that is the white space around the top bar. The theme's <style> block is
-   invisible but still takes a block's worth of room - hide it (the styles inside still apply). The
+   (--layout-gap: 16px): that is the white space around the top bar. The live <style> block (theme.css
+   and ui.css, pushed by the timer) is invisible but still takes a block's worth of room - hide it
+   (the styles inside still apply). The
    header itself sits in an .html-container with the same padding: take that off, so the bar is exactly
    as tall as the logos. */
 .zoo-theme,
@@ -262,14 +263,27 @@ body.dark .zoo-theme-btn svg * {
   justify-content: center;
   background: var(--zoo-page-bg);
   border-radius: 12px;
-  padding: 8px 14px;
+  padding: 12px 18px;
   line-height: 0;
 }
 
-/* the footer: the three logos, centred at the bottom, bigger than the top bar ever had them */
+/* the footer: the three logos, centred, stuck to the bottom of the window. The whole chain above it
+   must stretch for that (Gradio's app container and .contain do not grow by themselves), and the
+   footer block then takes the rest of the page as margin above it: the gap between the Detect button
+   and the footer flexes with the window instead of the page ending in white space */
+gradio-app,
+[class^="gradio-container"],
+main.contain,
+main.contain > .column {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
 .zoo-footer-block,
 .block:has(.zoo-footer) {
   padding: 0 !important;
+  margin-top: auto !important;
 }
 
 .zoo-footer-block .html-container,
@@ -277,25 +291,26 @@ body.dark .zoo-theme-btn svg * {
   padding: 0 !important;
 }
 
+.main {
+  padding-bottom: 4px !important;
+}
+
 .zoo-footer {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 48px;
-  padding: 14px 0 8px;
+  padding: 10px 0 2px;
 }
 
-.zoo-footer .zoo-logo {
-  height: 56px;
-}
-
+.zoo-footer .zoo-logo,
 .zoo-footer .zoo-cost-logo {
-  height: 40px;
+  height: 56px;
 }
 
 /* the image previews: tall on a big window, but capped by the window's height so the page (now with the
    footer's logos at the bottom) never grows taller than the screen. The -55px makes room for the footer;
    side panels - vertical tabs, devtools - take width away, not height */
 .zoo-image {
-  height: clamp(200px, calc(38vh - 62px), 440px) !important;
+  height: clamp(200px, calc(38vh - 72px), 440px) !important;
 }

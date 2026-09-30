@@ -32,13 +32,11 @@ def _page_css(name):
     return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), encoding="utf-8").read()
 
 
-CSS = _page_css("ui.css")    # the layout; the theme is served live (see the Timer in build())
-
-
-def _theme_style():
-    """theme.css wrapped in a <style> tag, read again on each call - so the Timer in build() can push colour
-    changes to the browser as they happen, without re-running the app."""
-    return "<style>%s</style>" % _page_css("theme.css")
+def _page_style():
+    """The whole style of the page - theme.css (colours, font sizes) then ui.css (layout, shapes), each in its
+    own <style> tag, read again on every call: the Timer in build() re-reads both files every second, so
+    colour AND layout edits show up in the browser without re-running the app."""
+    return "".join("<style>%s</style>" % _page_css(name) for name in ("theme.css", "ui.css"))
 # Runs in the browser. Gradio dropdowns only hold plain text, so the tags are added as coloured pills next to each
 # model name: in the open list and in the closed field. Also keeps the page light until the moon button (in the top
 # bar) switches it to dark - Gradio follows the computer's dark mode by adding a "dark" class to the page.
@@ -85,6 +83,11 @@ PAGE_JS = """() => {
     });
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
     fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
+    const btn = document.getElementById('zoo-theme-btn');
+    if (btn && !btn.dataset.zooTheme) {        // this script runs before Gradio renders the blocks, so
+      btn.dataset.zooTheme = '1';              // the button is wired here, once it exists
+      btn.addEventListener('click', () => { dark = !dark; document.body.classList.toggle('dark', dark); });
+    }
   };
   // The page starts light, whatever the computer's dark mode (Gradio follows it by adding a "dark" class
   // to the page): keep taking that class off until the visitor asks for dark with the moon button in the
@@ -93,9 +96,6 @@ PAGE_JS = """() => {
   // once the class attribute exists, and this page observes class changes - an unguarded change here
   // would make the observer fire forever, freezing the tab (Firefox and Chromium, dark mode).
   let dark = false;
-  const themeBtn = document.getElementById('zoo-theme-btn');
-  if (themeBtn)
-    themeBtn.addEventListener('click', () => { dark = !dark; document.body.classList.toggle('dark', dark); });
   const settle = () => {
     if (dark !== document.body.classList.contains('dark'))
       document.body.classList.toggle('dark', dark);
@@ -355,9 +355,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     first_group = group_of(first)
     first_cls_group = group_of(first_cls) if first_cls else NONE
     with gr.Blocks(title="InsectAI model zoo") as demo:
-        theme = gr.HTML(_theme_style(), elem_classes="zoo-theme")   # the colours, swapped in live by the timer below
-        live = gr.Timer(1)                # re-read theme.css every second: colour edits show up without a re-run
-        live.tick(lambda: gr.update(value=_theme_style()), None, theme, trigger_mode="once")
+        theme = gr.HTML(_page_style(), elem_classes="zoo-theme")   # the page's style, swapped in live by the timer below
+        live = gr.Timer(1)                # re-read theme.css and ui.css every second: edits show up without a re-run
+        live.tick(lambda: gr.update(value=_page_style()), None, theme, trigger_mode="once")
         gr.HTML(header_html(), elem_classes="zoo-header-block")
         example = example_image if example_image and os.path.isfile(example_image) else None
         with gr.Row(equal_height=True):
@@ -423,7 +423,7 @@ def launch(model, device, threshold, iou, output_dir, example_image, port=None, 
     _, local_url, _ = demo.queue().launch(
         inbrowser=True, server_name="127.0.0.1", server_port=port, allowed_paths=[output_dir],
         quiet=True, prevent_thread_lock=True, favicon_path=os.path.join(HERE, "assets", "InsectAI_icon.svg"),
-        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js(), css=CSS)
+        theme=gr.themes.Soft(primary_hue="green"), footer_links=[], js=page_js())
     print("\nThe UI is open in your browser: %s" % local_url)
     print("Results are also saved to %s. Press Ctrl+C here to stop.\n" % output_dir)
     demo.block_thread()
