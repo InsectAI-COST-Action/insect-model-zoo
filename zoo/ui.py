@@ -163,11 +163,13 @@ def header_html():
   <div class="zoo-brand">
     <a href="https://insectai.eu/" target="_blank"><img src="%s" alt="InsectAI" class="zoo-header-icon"></a>
     <span class="zoo-title"><span class="zoo-green">InsectAI</span> Model Zoo</span>
+    <span class="zoo-db-links"><a href="{model_db}" target="_blank">Model database</a> &middot;
+      <a href="{bench_db}" target="_blank">Benchmark database</a></span>
   </div>
   <button id="zoo-theme-btn" class="zoo-theme-btn" title="Dark / light" aria-label="Switch between dark and light">
     %s%s
   </button>
-</div>""" % (icon, MOON_ICON, SUN_ICON)
+</div>""".format(model_db=MODEL_DB, bench_db=BENCHMARK_DB) % (icon, MOON_ICON, SUN_ICON)
 
 
 def footer_html():

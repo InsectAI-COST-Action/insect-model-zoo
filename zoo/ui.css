@@ -281,6 +281,22 @@ body.dark .zoo-theme-btn svg * {
   font-weight: 600;
 }
 
+/* the model / benchmark database links: small and quiet, in the top bar and under the model lists */
+.zoo-db-links,
+.db-links {
+  font-size: var(--zoo-font-hint);
+  color: var(--zoo-text-dim);
+}
+
+.zoo-db-links a {
+  color: var(--zoo-text-dim) !important; /* .prose would make them link-coloured and underlined */
+  text-decoration: none !important;
+}
+
+.zoo-db-links a:hover {
+  text-decoration: underline !important;
+}
+
 /* the footer: the three logos, centred, stuck to the bottom of the window. The whole chain above it
    must stretch for that (Gradio's app container and .contain do not grow by themselves), and the
    footer block then takes the rest of the page as margin above it: the gap between the Detect button
