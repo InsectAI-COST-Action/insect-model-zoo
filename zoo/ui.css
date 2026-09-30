@@ -169,7 +169,11 @@ li[role="option"]:has(> .zoo-pills),
   font-weight: 600;
 }
 
+/* the COST and EU logos side by side in one white badge */
 .zoo-cost {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--zoo-page-bg);
   border-radius: 8px;
   padding: 4px 10px;

@@ -120,7 +120,8 @@ def _data_uri(filename, mime):
 
 def header_html():
     insectai = _data_uri("logo_insectai.svg", "image/svg+xml")
-    cost = _data_uri("logo_cost_eu.jpg", "image/jpeg")
+    cost = _data_uri("logo_cost.svg", "image/svg+xml")
+    eu = _data_uri("logo_eu.svg", "image/svg+xml")
     return """
 <div class="zoo-header">
   <div class="zoo-brand">
@@ -128,8 +129,9 @@ def header_html():
     <span class="zoo-title">Model zoo</span>
   </div>
   <a href="https://www.cost.eu/actions/CA22129/" target="_blank" class="zoo-cost">
-    <img src="{cost}" alt="COST - Funded by the European Union" class="zoo-cost-logo"></a>
-</div>""".format(insectai=insectai, cost=cost)
+    <img src="{cost}" alt="COST" class="zoo-cost-logo zoo-logo-cost"><img src="{eu}" alt="Funded by the European Union"
+         class="zoo-cost-logo"></a>
+</div>""".format(insectai=insectai, cost=cost, eu=eu)
 
 
 def family_choices(table, none_label=None):

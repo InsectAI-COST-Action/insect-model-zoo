@@ -74,3 +74,8 @@
   --pill-bg: #ffe4e6;
   --pill-border: #fda4af;
 }
+
+/* the COST svg is white artwork: flip it to black so it shows on the white badge */
+.zoo-logo-cost {
+  filter: invert(1);
+}
