@@ -55,6 +55,18 @@ li[role=option]:has(> .zoo-pills), .secondary-wrap:has(> .zoo-pills) {
 .zoo-pill.zero-shot    { color: #b45309; background: #fef3c7; border-color: #fcd34d; }   /* amber  */
 .zoo-pill.text-prompt  { color: #0369a1; background: #e0f2fe; border-color: #7dd3fc; }   /* blue   */
 .zoo-pill.gated        { color: #be123c; background: #ffe4e6; border-color: #fda4af; }   /* red    */
+/* confidence sliders: an oval (pill) track with a round green handle; the value box on the right updates live */
+.zoo-slider input[type="range"] { height: 10px; border-radius: 999px; }
+.zoo-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: #16a34a; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,.35); }
+.zoo-slider input[type="range"]::-moz-range-thumb {
+  width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; background: #16a34a; }
+.zoo-slider input[type="number"] {          /* the live value: a rounded green chip */
+  font-weight: 700; color: #15803d; text-align: center; border-radius: 999px !important;
+  background: #f0fdf4 !important; border: 1px solid #86efac !important; }
+.upload-hint { text-align: center; margin: -2px 0 0; color: #64748b; font-size: .85rem; }
+.upload-hint strong { color: #15803d; }
 """
 
 # Runs in the browser. Gradio dropdowns only hold plain text, so the tags are added as coloured pills next to each
@@ -142,9 +154,11 @@ def header_html():
 </div>""".format(insectai=insectai, cost=cost)
 
 
-def family_choices(table, with_none=False):
-    """One entry per model family (its tags are added as coloured pills by PAGE_JS)."""
-    return ([("none", NONE)] if with_none else []) + [(group, group) for group in groups(table)]
+def family_choices(table, none_label=None):
+    """One entry per model family (its tags are added as coloured pills by PAGE_JS). `none_label`, when given, adds a
+    leading "no model" entry (value NONE), e.g. "none" for the classifier or "whole image" for the detector."""
+    head = [(none_label, NONE)] if none_label else []
+    return head + [(group, group) for group in groups(table)]
 
 
 def version_choices(group, table):
@@ -188,32 +202,45 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
     # handlers read the family dropdowns, not the size buttons (those may still be switching to the new family)
     def on_det_family(group, cls_group):
+        # outputs: det_sizes, cls_family, gated_md, thr (the detection-confidence slider), text (the prompt box)
+        if group == NONE:                                    # "whole image": no detector, classifier only
+            new_cls = cls_group if cls_group != NONE else next(iter(groups(CLASSIFIERS)))   # need a classifier
+            return (gr.update(choices=[], value=None, visible=False), gr.update(value=new_cls),
+                    gated_note(cls_of(new_cls)), gr.update(visible=False), gr.update(visible=False))
         card = group_default(group, MODELS)
         pair = get_classifier("auto", card)                  # a detector family's own classifier, or none
         return (sizes(group, MODELS, card), gr.update(value=group_of(pair) if pair else NONE),
-                gated_note(card, cls_of(cls_group)))
+                gated_note(card, cls_of(cls_group)), gr.update(visible=True), gr.update(visible=True))
 
     def on_det_version(name):
+        if not name:                                         # whole-image mode: no detector picked
+            return gr.update(), gr.update()
         card = get_model(name)
         return ((threshold if threshold is not None else card.default_threshold),
                 gr.update(interactive=card.text_prompt, placeholder=placeholder(card)))
 
     def on_cls_family(group, det_group):
-        detector = group_default(det_group, MODELS)
+        # outputs: cls_sizes, classes_box, gated_md, cls_thr (the classification-confidence slider)
+        detector = None if det_group == NONE else group_default(det_group, MODELS)
         if group == NONE:
             return (gr.update(choices=[], value=None, visible=False), gr.update(visible=False),
-                    gated_note(detector))
+                    gated_note(detector), gr.update(visible=False))
         card = group_default(group, CLASSIFIERS)
         return (sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)),
-                gated_note(detector, card))
+                gated_note(detector, card), gr.update(visible=True))
 
-    def run(det_name, cls_name, thr, text, classes_text, image_path):
-        """The Detect button itself shows what is going on (download MB, loading, running) until the result is in."""
+    def run(det_name, cls_name, det_thr, cls_thr, text, classes_text, image_path):
+        """The Detect button itself shows what is going on (download MB, loading, running) until the result is in.
+        With no detector (det_name empty) the whole image is one box and only the classifier runs."""
         ready = gr.update(value=DETECT, interactive=True)
         if not image_path:
             yield gr.update(), ready
             raise gr.Error("Add an image first.")
-        card, cls = get_model(det_name), (CLASSIFIERS.get(cls_name) if cls_name else None)
+        card = get_model(det_name) if det_name else None
+        cls = CLASSIFIERS.get(cls_name) if cls_name else None
+        if card is None and cls is None:
+            yield gr.update(), ready
+            raise gr.Error("Pick a detector, or a classifier to run on the whole image.")
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
         problems = []
         if names and cls and cls.classes:
@@ -222,7 +249,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             yield gr.update(), ready
             raise gr.Error(" ".join(problems), title="Check the names")
         warnings, result = [], {}
-        status = {"text": "Loading %s ... (please wait)" % display_name(card)}
+        what = " + ".join([display_name(card) if card else "whole image"] + ([display_name(cls)] if cls else []))
+        status = {"text": "Loading %s ... (please wait)" % display_name(card or cls)}
 
         def log(msg):
             print(msg)
@@ -237,15 +265,20 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
         def work():                      # runs in a thread, so the button can be updated meanwhile
             try:
-                zoo.load(card, progress_for(card))
+                if card is not None:
+                    zoo.load(card, progress_for(card))
                 if cls:
                     status["text"] = "Loading %s ... (please wait)" % display_name(cls)
                 zoo.load_classifier(cls, progress_for(cls) if cls else None)
-                status["text"] = "Running %s%s ... (please wait)" % (display_name(card),
-                                                                    " + " + display_name(cls) if cls else "")
-                folder = card.name + ("+" + cls.name if cls else "")
-                result["out"] = zoo.run_file(image_path, thr, iou if iou is not None else card.default_iou,
-                                             os.path.join(output_dir, folder), text, names)
+                status["text"] = "Running %s ... (please wait)" % what
+                if card is not None:
+                    folder = card.name + ("+" + cls.name if cls else "")
+                    result["out"] = zoo.run_file(image_path, det_thr, iou if iou is not None else card.default_iou,
+                                                 os.path.join(output_dir, folder), text, names, cls_threshold=cls_thr)
+                else:
+                    folder = "whole-image+" + cls.name
+                    result["out"] = zoo.run_classify_only(image_path, os.path.join(output_dir, folder), names,
+                                                          cls_threshold=cls_thr)
             except Exception as e:
                 result["error"] = e
 
@@ -253,9 +286,10 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         for c in (card, cls):
             if c is not None and not is_downloaded(c):
                 print("Downloading %s weights (%s) ..." % (c.name, size_text(c.weights.size)))
+        yield gr.update(), gr.update(value=STARTING, interactive=False)    # at once, before any model loads
         worker = threading.Thread(target=work, daemon=True)
         worker.start()
-        shown = None
+        shown = STARTING
         while worker.is_alive():
             if status["text"] != shown:
                 shown = status["text"]
@@ -270,39 +304,53 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 print(error)
                 raise gr.Error("A gated model needs access and your Hugging Face token first. "
                                "Follow the 'How to get access' link under the model lists.")
-            raise gr.Error("%s failed: %s" % (display_name(card), error))
+            raise gr.Error("%s failed: %s" % (what, error))
         _, dets, secs, files = result["out"]
         for w in warnings:
             gr.Warning(w)
+        dev = zoo.detector.device or zoo.classifier.device      # no detector in whole-image mode
         taxa = Counter(d.taxon for d in dets if d.taxon)
-        found = "%d found" % len(dets) + ("".join(" · %s ×%d" % t for t in taxa.most_common(2)) if taxa else "")
-        print("%s: %s, %.2fs on %s -> %s" % (card.name + ("+" + cls.name if cls else ""), found, secs, zoo.device,
-                                           os.path.dirname(files[0])))
-        yield gr.update(value=files[0], label="%s · %.1f s · %s" % (found, secs, zoo.device)), ready
+        if card is not None:
+            found = "%d found" % len(dets) + ("".join(" · %s ×%d" % t for t in taxa.most_common(2)) if taxa else "")
+        else:                                                  # whole image: report the taxon, not a box count
+            found = (dets[0].taxon or "no match") if dets else "no match"
+        print("%s: %s, %.2fs on %s -> %s" % (what, found, secs, dev, os.path.dirname(files[0])))
+        yield gr.update(value=files[0], label="%s · %.1f s · %s" % (found, secs, dev)), ready
 
     first_group = group_of(first)
     first_cls_group = group_of(first_cls) if first_cls else NONE
     with gr.Blocks(title="InsectAI model zoo") as demo:
         gr.HTML(header_html())
+        example = example_image if example_image and os.path.isfile(example_image) else None
         with gr.Row(equal_height=True):
-            image_in = gr.Image(type="filepath", label="Image", sources=["upload", "clipboard"], height=440,
-                                buttons=["fullscreen"],
-                                value=example_image if example_image and os.path.isfile(example_image) else None)
-            image_out = gr.Image(label="Result", interactive=False, height=440, buttons=["download", "fullscreen"])
+            with gr.Column():
+                image_in = gr.Image(type="filepath", label="Your image", sources=["upload", "clipboard"], height=440,
+                                    buttons=["fullscreen"], value=example)
+                gr.Markdown(("**Click the image or drag your own photo onto it** to analyse yours (this is just a "
+                             "sample)." if example else "**Click or drag a photo here** to get started."),
+                            elem_classes="upload-hint")
+            with gr.Column():
+                image_out = gr.Image(label="Result", interactive=False, height=440,
+                                     buttons=["download", "fullscreen"])
         with gr.Row():
             with gr.Column(scale=3, min_width=260), gr.Group():          # one box: list + sizes
-                det_family = gr.Dropdown(family_choices(MODELS), value=first_group, label="Detector")
+                det_family = gr.Dropdown(family_choices(MODELS, none_label="whole image (classifier only)"),
+                                         value=first_group, label="Detector")
                 det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
                                      visible=len(groups(MODELS)[first_group]) > 1)
             with gr.Column(scale=3, min_width=260), gr.Group():
-                cls_family = gr.Dropdown(family_choices(CLASSIFIERS, with_none=True), value=first_cls_group,
+                cls_family = gr.Dropdown(family_choices(CLASSIFIERS, none_label="none"), value=first_cls_group,
                                          label="Classifier")
                 cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
                                      value=first_cls.name if first_cls else None, show_label=False,
                                      visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
-            with gr.Column(scale=2, min_width=220):
-                thr = gr.Slider(0.01, 0.99, step=0.01, label="Threshold",
-                                value=threshold if threshold is not None else first.default_threshold)
+            with gr.Column(scale=3, min_width=260):
+                thr = gr.Slider(0.01, 0.99, step=0.01, label="Detection confidence", elem_classes="zoo-slider",
+                                value=threshold if threshold is not None else first.default_threshold,
+                                info="Boxes below this are dropped")
+                cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
+                                    value=0.0, visible=bool(first_cls),
+                                    info="Names below this show as 'Unsure'")
         gated_md = gr.Markdown(visible=False)
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
@@ -310,16 +358,15 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                  visible=bool(first_cls and first_cls.classes))
         run_btn = gr.Button(DETECT, variant="primary")
 
-        det_family.change(on_det_family, [det_family, cls_family], [det_sizes, cls_family, gated_md])
+        det_family.change(on_det_family, [det_family, cls_family], [det_sizes, cls_family, gated_md, thr, text])
         det_sizes.change(on_det_version, det_sizes, [thr, text])
-        cls_family.change(on_cls_family, [cls_family, det_family], [cls_sizes, classes_box, gated_md])
-        inputs = [det_sizes, cls_sizes, thr, text, classes_box, image_in]
+        cls_family.change(on_cls_family, [cls_family, det_family], [cls_sizes, classes_box, gated_md, cls_thr])
+        inputs = [det_sizes, cls_sizes, thr, cls_thr, text, classes_box, image_in]
         run_btn.click(run, inputs, [image_out, run_btn], show_progress="hidden")
         text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
         classes_box.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
-        for trigger in (run_btn.click, text.submit, classes_box.submit):   # instant, in the browser
-            trigger(None, None, run_btn, js="() => '%s'" % STARTING)
-        demo.load(lambda d, c: gated_note(group_default(d, MODELS), cls_of(c)), [det_family, cls_family], gated_md)
+        demo.load(lambda d, c: gated_note(None if d == NONE else group_default(d, MODELS), cls_of(c)),
+                  [det_family, cls_family], gated_md)
         demo.load(hardware_notes)
     return demo
 

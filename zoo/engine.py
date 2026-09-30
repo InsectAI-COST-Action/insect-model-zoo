@@ -115,13 +115,34 @@ class Zoo:
         self._on_cpu_if_gpu_fails(self.classifier, lambda m: m.classify(image_rgb, dets, classes))
         return time.time() - t
 
-    def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None):
+    def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None, cls_threshold=0.0):
         image = results.load_image(path)
         dets, secs = self.predict(image, threshold, iou, prompt)
         secs += self.classify(image, dets, classes)
+        _apply_taxon_threshold(dets, cls_threshold)
         files = results.save(path, image, dets, out_dir, self.card.name,
                              self.classifier.card.name if self.classifier.card else "")
         return image, dets, secs, files
+
+    def run_classify_only(self, path, out_dir, classes=None, cls_threshold=0.0):
+        """No detector: treat the whole image as one box and just classify it."""
+        image = results.load_image(path)
+        h, w = image.shape[:2]
+        dets = [results.Detection(0.0, 0.0, float(w - 1), float(h - 1), 1.0, "")]
+        secs = self.classify(image, dets, classes)
+        _apply_taxon_threshold(dets, cls_threshold)
+        name = self.classifier.card.name if self.classifier.card else ""
+        files = results.save(path, image, dets, out_dir, "whole-image", name)
+        return image, dets, secs, files
+
+
+def _apply_taxon_threshold(dets, cls_threshold):
+    """Below the classification-confidence threshold, show the label as 'Unsure' instead of a guessed taxon."""
+    if not cls_threshold:
+        return
+    for d in dets:
+        if d.taxon and d.taxon != "Unsure" and (d.taxon_score or 0.0) < cls_threshold:
+            d.taxon = "Unsure"
 
 
 def _is_gpu_error(e):

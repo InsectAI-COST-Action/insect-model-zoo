@@ -181,8 +181,14 @@ python main.py
 ```
 
 A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a **Detector** and a **Classifier**
-dropdown, a **threshold** slider and **Detect**. The test image is preloaded, so you can press Detect straight away.
+dropdown, two **confidence** sliders and **Detect**. A sample image is preloaded, so you can press Detect straight
+away; click it or drag your own photo onto it to analyse yours.
 
+- **Detection confidence**: boxes the detector is less sure about are dropped. **Classification confidence**: names
+  the classifier is less sure about are shown as *Unsure* (0 = keep every name). Each slider shows its value live.
+- **Classifier only**: pick *whole image (classifier only)* as the detector. The whole photo then counts as one box
+  and only the classifier runs, e.g. for close-ups where the insect fills the frame (on a wide scene it names the
+  whole scene, not one small insect). Results go to `output/whole-image+<classifier>/`.
 - Each model family appears once in the lists, with its tags (e.g. *flat-bug (detector + segmentation)*). Families
   with several sizes (insectDCT v8, flat-bug) show size buttons when picked, e.g. N · S · M · L · M v2; the largest
   is selected by default.
@@ -475,7 +481,7 @@ use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
 | Runs on CPU although you have an NVIDIA GPU | `python main.py --check` tells you why; usually the CPU-only PyTorch, see [GPU](#getting-the-gpu-to-work) |
 | Download fails | check the internet connection or proxy; the error shows the URL and where to put a manually downloaded file |
 | Too slow | use a GPU, or smaller models (`insectdct-v8-s`, `flatbug-n`, `flatbug-s`, `bioclip-2`), or `-c none` |
-| Too many / too few detections | raise / lower `--threshold` (or the slider in the UI) |
+| Too many / too few detections | raise / lower `--threshold` (or the *Detection confidence* slider in the UI) |
 | BioCLIP gives odd names | give it a list that matches what can be in your images (`--classes`, or the names field in the UI) |
 | BioCLIP calls a flower or leaf an insect order | by default it only knows insect/arthropod orders: set `BIOCLIP_INSECT_TAXA = False` in `main.py` (see [BioCLIP](#bioclip-25-and-bioclip-2-zero-shot)) |
 | `sam3`: *No Hugging Face token found* / *error 401* / *error 403* | see [docs/GATED_MODELS.md](docs/GATED_MODELS.md#if-it-does-not-work) |

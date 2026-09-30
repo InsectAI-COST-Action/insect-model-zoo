@@ -36,7 +36,10 @@ class Detection:
     def caption(self):
         if self.taxon and self.taxon != "Unsure":
             return "%s %.2f" % (self.taxon, self.taxon_score or 0)
-        return "%s %.2f%s" % (self.label, self.confidence, " (unsure)" if self.taxon == "Unsure" else "")
+        unsure = " (unsure)" if self.taxon == "Unsure" else ""
+        if not self.label:                       # e.g. a whole-image box (classifier only): no detector label
+            return "Unsure" if unsure else "%.2f" % self.confidence
+        return "%s %.2f%s" % (self.label, self.confidence, unsure)
 
 
 def load_image(path):
