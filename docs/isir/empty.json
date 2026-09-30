@@ -1,0 +1,37 @@
+{
+ "ir_name": "ISIR",
+ "ir_id": 1,
+ "image": {
+  "id": "empty_scene.png",
+  "file_name": "empty_scene.png",
+  "width": 640,
+  "height": 480,
+  "format": "image/png"
+ },
+ "instances": [],
+ "model": {
+  "name": "insectdct-v8-s"
+ },
+ "inference": {
+  "timestamp": "2026-09-30T15:10:51.717Z",
+  "config": {
+   "threshold": 0.407,
+   "iou": 0.3,
+   "prompt": null,
+   "classes": null,
+   "cls_threshold": null
+  }
+ },
+ "extra_information": {
+  "insect_model_zoo": {
+   "file_modified": "2026-09-30T15:10:50.000Z",
+   "classifier": "insectdct-cls-v7",
+   "classifications": [],
+   "device": "cpu",
+   "model_db": {
+    "insectdct-v8-s": "https://insectai-cost-action.github.io/model-db/models/insectdct/",
+    "insectdct-cls-v7": "https://insectai-cost-action.github.io/model-db/models/insectdct/"
+   }
+  }
+ }
+}

@@ -87,5 +87,34 @@ jobs:
           assert "Apis mellifera" in taxa, taxa           # the test image is a honey bee
           EOF
 
+      - name: ISIR output is valid (model-db's own checker)
+        run: |
+          python main.py -m insectdct-v8-s -d cpu -f images -o ci_out/folder
+          git init -q model-db && cd model-db
+          git fetch -q --depth 1 https://github.com/InsectAI-COST-Action/model-db c05b22d884891ed64717a862f53aee9ed22cf3a7
+          git checkout -q FETCH_HEAD && cd ..
+          python - <<'EOF'
+          import glob, json, os, sys
+          sys.path.insert(0, os.path.join("model-db", "src"))
+          from iai_model_zoo.formats.adapters import coco as model_db_coco
+          from iai_model_zoo.formats.adapters._common import checked_ir
+          records = [(p, json.load(open(p, encoding="utf-8"))) for p in
+                     glob.glob("ci_out/**/*_isir.json", recursive=True) + glob.glob("docs/isir/*.json")]
+          for p in glob.glob("ci_out/**/isir.jsonl", recursive=True) + glob.glob("docs/isir/*.jsonl"):
+              records += [(p, json.loads(line)) for line in open(p, encoding="utf-8")]
+          assert len(records) >= 10, len(records)
+          for p, r in records:
+              checked_ir(r)                                              # model-db's own ISIR v1 check
+              ids = {i["id"] for i in r["instances"]}
+              for c in r.get("extra_information", {}).get("insect_model_zoo", {}).get("classifications", []):
+                  assert c["instance_id"] in ids, (p, c)
+              coco_file = p.replace("_isir.json", "_coco.json")
+              if p.endswith("_isir.json") and os.path.isfile(coco_file):   # same boxes as model-db's own COCO -> ISIR
+                  theirs = model_db_coco.to_ir(json.load(open(coco_file, encoding="utf-8"))).images[0]["instances"]
+                  assert len(theirs) == len(r["instances"]) and all(
+                      abs(u - v) < 0.02 for a, b in zip(r["instances"], theirs) for u, v in zip(a["bbox"], b["bbox"])), p
+          print(len(records), "ISIR records valid")
+          EOF
+
       - name: UI builds
         run: python -c "from zoo.ui import build; build('flatbug-n', 'cpu', None, None, 'ci_out', 'images/test_image.jpg')"

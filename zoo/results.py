@@ -87,8 +87,9 @@ def draw(image_rgb, detections):
     return img[:, :, ::-1]
 
 
-def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name=""):
-    """Write <stem>_annotated.jpg, <stem>_detections.csv and <stem>_coco.json (COCO, e.g. to train a model on).
+def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name="", meta=None):
+    """Write <stem>_annotated.jpg, <stem>_detections.csv, <stem>_coco.json (COCO, e.g. to train a model on) and
+    <stem>_isir.json (ISIR, the InsectAI intermediate representation). meta: {"config": settings, "device": ...}.
     Returns the list of written file paths."""
     import cv2
     os.makedirs(out_dir, exist_ok=True)
@@ -109,10 +110,13 @@ def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name
         wr.writerows(d.row(name, model_name, classifier_name) for d in detections)
     files.append(out_csv)
 
-    from .export import Entry, write_coco
+    from .export import Entry, isir, write_coco, write_isir
     h, w = image_rgb.shape[:2]
-    files.append(write_coco(os.path.join(out_dir, stem + "_coco.json"), [Entry(image_path, name, w, h, detections)],
-                            model_name, classifier_name))
+    entry = Entry(image_path, name, w, h, detections)
+    files.append(write_coco(os.path.join(out_dir, stem + "_coco.json"), [entry], model_name, classifier_name))
+    meta = meta or {}
+    files.append(write_isir(os.path.join(out_dir, stem + "_isir.json"),
+                            isir(entry, model_name, classifier_name, meta.get("config"), meta.get("device", ""))))
     return files
 
 

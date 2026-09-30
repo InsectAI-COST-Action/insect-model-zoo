@@ -1,0 +1,110 @@
+{
+ "ir_name": "ISIR",
+ "ir_id": 1,
+ "image": {
+  "id": "test_4_domains.jpg",
+  "file_name": "test_4_domains.jpg",
+  "width": 2568,
+  "height": 1448,
+  "format": "image/jpeg"
+ },
+ "instances": [
+  {
+   "id": 0,
+   "bbox": [
+    289.71,
+    1027.76,
+    106.52,
+    111.91
+   ],
+   "confidence": 0.8048,
+   "category_id": "insect",
+   "polygons": [
+    [
+     [
+      287.6,
+      971.8
+     ],
+     [
+      343.0,
+      1045.0
+     ],
+     [
+      291.8,
+      1083.7
+     ],
+     [
+      236.4,
+      1010.5
+     ]
+    ]
+   ],
+   "extra_information": {
+    "insect_model_zoo": {
+     "angle_deg": 52.91,
+     "angle_convention": "long side vs the image x-axis, counter-clockwise as seen"
+    }
+   }
+  },
+  {
+   "id": 1,
+   "bbox": [
+    59.21,
+    1193.48,
+    30.74,
+    38.82
+   ],
+   "confidence": 0.7912,
+   "category_id": "insect",
+   "polygons": [
+    [
+     [
+      73.5,
+      1174.1
+     ],
+     [
+      74.6,
+      1212.1
+     ],
+     [
+      44.9,
+      1212.9
+     ],
+     [
+      43.8,
+      1174.9
+     ]
+    ]
+   ],
+   "extra_information": {
+    "insect_model_zoo": {
+     "angle_deg": 88.42,
+     "angle_convention": "long side vs the image x-axis, counter-clockwise as seen"
+    }
+   }
+  }
+ ],
+ "model": {
+  "name": "mothbot-mbd-1-1"
+ },
+ "inference": {
+  "timestamp": "2026-09-30T15:10:56.653Z",
+  "config": {
+   "threshold": 0.25,
+   "iou": 0.7,
+   "prompt": null,
+   "classes": null,
+   "cls_threshold": null
+  }
+ },
+ "extra_information": {
+  "insect_model_zoo": {
+   "file_modified": "2026-09-30T14:02:56.000Z",
+   "device": "cpu",
+   "model_db": {
+    "mothbot-mbd-1-1": "https://insectai-cost-action.github.io/model-db/models/mothbot/"
+   },
+   "note": "example shortened to the first 2 of 36 instances"
+  }
+ }
+}

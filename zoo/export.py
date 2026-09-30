@@ -1,5 +1,5 @@
-"""Exports of the results: COCO JSON (to train models on) and a Camtrap DP data package (to share / publish camera-trap
-data, e.g. on GBIF).
+"""Exports of the results: COCO JSON (to train models on), ISIR (the InsectAI intermediate representation) and a
+Camtrap DP data package (to share / publish camera-trap data, e.g. on GBIF).
 
 Both take a list of Entry: one image with its size and detections (see results.Detection)."""
 
@@ -48,10 +48,11 @@ def coco(entries, detector, classifier=""):
             x, y, w, h = d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1
             ann = {"id": len(annotations) + 1, "image_id": image_id, "category_id": ids[category(d)],
                    "bbox": [round(x, 2), round(y, 2), round(w, 2), round(h, 2)], "area": round(w * h, 2),
-                   "iscrowd": 0, "score": None if d.confidence is None else round(d.confidence, 4),
-                   "label": d.label, "taxon": d.taxon,
+                   "iscrowd": 0, "label": d.label, "taxon": d.taxon,
                    "taxon_score": None if d.taxon_score is None else round(d.taxon_score, 4),
                    "taxon_rank": d.taxon_rank}
+            if d.confidence is not None:                              # none in whole-image (classifier only) mode
+                ann["score"] = round(d.confidence, 4)
             if d.angle is not None:
                 ann["angle"] = round(d.angle, 2)                      # oriented box: segmentation = its 4 corners
             if d.polygon is not None and len(d.polygon) > 2:
@@ -84,6 +85,95 @@ def _polygon_area(poly):
 
 def _now():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+# --------------------------------------------------------------------------------------------------- ISIR
+ISIR_NS = "insect_model_zoo"         # our namespace in ISIR's extra_information
+TIMEZONE = None                      # the camera clock's zone for photos that store none (main.py CAMTRAPDP_INFO)
+LOCATION = None                      # (latitude, longitude) of the camera for photos without GPS (--latitude/--longitude)
+
+
+def isir(entry, detector="", classifier="", config=None, device=""):
+    """ISIR v1 record for one image: the InsectAI intermediate representation of model-db
+    (static/formats/detection/isir.json), validated with model-db's own checker in the tests.
+    - boxes: centre x, centre y, width, height in pixels, origin at the BOTTOM-left (y = height - y);
+    - confidence: the detector's only; the classifier's answers are in extra_information, linked by instance id;
+    - oriented boxes (Mothbot): the upright hull + the 4 corners as a polygon (ISIR has no rotation convention yet),
+      the angle in the instance's extra_information;
+    - capture time in UTC only when its time zone is known (from the photo, or TIMEZONE); otherwise the local time
+      is kept as unresolved, not guessed."""
+    height = entry.height
+    instances, classifications = [], []
+    for n, d in enumerate(entry.detections):
+        inst = {"id": n, "bbox": [round((d.x1 + d.x2) / 2, 2), round(height - (d.y1 + d.y2) / 2, 2),
+                                  round(d.x2 - d.x1, 2), round(d.y2 - d.y1, 2)]}
+        if d.confidence is not None:
+            inst["confidence"] = round(d.confidence, 4)
+        if d.label:
+            inst["category_id"] = d.label
+        if d.polygon is not None and len(d.polygon) > 2:
+            inst["polygons"] = [[[round(float(x), 1), round(height - float(y), 1)] for x, y in d.polygon]]
+        if d.angle is not None:
+            inst["extra_information"] = {ISIR_NS: {"angle_deg": round(d.angle, 2), "angle_convention":
+                                                   "long side vs the image x-axis, counter-clockwise as seen"}}
+        instances.append(inst)
+        if d.taxon:
+            c = {"instance_id": n, "taxon": d.taxon, "rank": d.taxon_rank or None,
+                 "score": None if d.taxon_score is None else round(d.taxon_score, 4)}
+            if d.taxon_options:
+                c["options"] = [{"name": name, "score": round(score, 4), "rank": rank or None}
+                                for name, score, rank in d.taxon_options]
+            classifications.append(c)
+    record = {"ir_name": "ISIR", "ir_id": 1,
+              "image": {"id": entry.file_name, "file_name": os.path.basename(entry.path), "width": entry.width,
+                        "height": height, "format": _mediatype(entry.path)},
+              "instances": instances}
+    if detector in MODELS:                                           # none in whole-image (classifier only) mode
+        record["model"] = {"name": detector}
+    record["inference"] = {"timestamp": _utc_ms(datetime.now(timezone.utc)), "config": config or {}}
+
+    context, extra = {}, {}
+    try:
+        zone = _zone(TIMEZONE)
+    except ValueError:
+        zone = None
+    stamp, source = _timestamp(entry.path, zone)
+    if source == "exif" or (source == "exif_zone_assumed" and zone is not None):
+        context["timestamp"] = _utc_ms(datetime.fromisoformat(stamp))
+        extra["capture_time_source"] = "photo (EXIF, its own time zone)" if source == "exif" else \
+            "photo (EXIF) + the configured time zone %s" % TIMEZONE
+    elif source == "exif_zone_assumed":
+        extra["capture_time_local_unresolved"] = stamp[:19]           # the camera's clock, time zone unknown
+    else:
+        extra["file_modified"] = _utc_ms(datetime.fromisoformat(stamp))   # not the capture time
+    gps = _gps(entry.path)
+    if gps or LOCATION:
+        context.update(latitude=(gps or LOCATION)[0], longitude=(gps or LOCATION)[1], crs="EPSG:4326")
+        extra["location_source"] = "photo (EXIF GPS)" if gps else "settings (--latitude / --longitude)"
+    if context:
+        record["context"] = context
+    if classifier:
+        extra["classifier"] = classifier
+        extra["classifications"] = classifications
+    if device:
+        extra["device"] = str(device)
+    pages = _model_db_pages(detector, classifier)
+    if pages:
+        extra["model_db"] = pages
+    record["extra_information"] = {ISIR_NS: extra}
+    return record
+
+
+def write_isir(path, record):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(record, f, indent=1)
+    return path
+
+
+def _utc_ms(t):
+    """ISIR's strict timestamp: UTC with milliseconds and a Z, e.g. 2026-07-14T08:32:05.000Z."""
+    t = t.astimezone(timezone.utc)
+    return t.strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (t.microsecond // 1000)
 
 
 # --------------------------------------------------------------------------------------------------- Camtrap DP

@@ -1,0 +1,63 @@
+{
+ "ir_name": "ISIR",
+ "ir_id": 1,
+ "image": {
+  "id": "test_image.jpg",
+  "file_name": "test_image.jpg",
+  "width": 1920,
+  "height": 1080,
+  "format": "image/jpeg"
+ },
+ "instances": [
+  {
+   "id": 0,
+   "bbox": [
+    106.01,
+    211.65,
+    96.65,
+    76.07
+   ],
+   "confidence": 0.7789,
+   "category_id": "insect"
+  }
+ ],
+ "model": {
+  "name": "insectdct-v8-s"
+ },
+ "inference": {
+  "timestamp": "2026-09-30T15:10:50.819Z",
+  "config": {
+   "threshold": 0.407,
+   "iou": 0.3,
+   "prompt": null,
+   "classes": null,
+   "cls_threshold": null
+  }
+ },
+ "context": {
+  "timestamp": "2026-09-15T08:41:51.000Z",
+  "latitude": 56.16,
+  "longitude": 10.2,
+  "crs": "EPSG:4326"
+ },
+ "extra_information": {
+  "insect_model_zoo": {
+   "capture_time_source": "photo (EXIF) + the configured time zone Europe/Copenhagen",
+   "location_source": "settings (--latitude / --longitude)",
+   "classifier": "insectdct-cls-v7",
+   "classifications": [
+    {
+     "instance_id": 0,
+     "taxon": "Apis mellifera",
+     "rank": "species",
+     "score": 0.9905
+    }
+   ],
+   "device": "cpu",
+   "model_db": {
+    "insectdct-v8-s": "https://insectai-cost-action.github.io/model-db/models/insectdct/",
+    "insectdct-cls-v7": "https://insectai-cost-action.github.io/model-db/models/insectdct/"
+   }
+  }
+ }
+}

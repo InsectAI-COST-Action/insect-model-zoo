@@ -220,7 +220,7 @@ it to analyse yours.
 - The first time you use a model, the Detect button shows its download (e.g. "Downloading flatbug-l · 32 MB / 80 MB")
   until it is done.
 - The result shows what was found (e.g. "1 found · Apis mellifera ×1 · 1.8 s · cuda:0") and can be downloaded; the
-  CSV and COCO JSON files are saved to `output/<detector>+<classifier>/` (see [Output](#output)).
+  CSV, COCO and ISIR files are saved to `output/<detector>+<classifier>/` (see [Output](#output)).
 
 Stop the UI with **Ctrl+C** in the terminal.
 
@@ -258,7 +258,7 @@ python main.py --help                                         # all options + th
 | `--weights_dir` | | where model weights are kept, e.g. on another drive | `weights/` |
 | `--device` | `-d` | `auto`, `cpu`, `cuda`, `cuda:1`, `mps` | `auto` |
 | `--camtrapdp` | | also write a [Camtrap DP](docs/CAMTRAP_DP.md) data package (also `--camtrapDP`) | off |
-| `--latitude`, `--longitude` | | Camtrap DP: where the camera was, decimal degrees (WGS84) | the photos' GPS |
+| `--latitude`, `--longitude` | | where the camera was, decimal degrees (WGS84), for ISIR and Camtrap DP | the photos' GPS |
 | `--deployment_id` | | Camtrap DP: camera / site name | the images folder's name |
 | `--list_models` | `-l` | list the models and exit | |
 | `--check` | | hardware report: GPU, RAM, which models fit | |
@@ -326,8 +326,10 @@ For each image, in `output/<detector>+<classifier>/` (just `output/<detector>/` 
   a model on (as pre-labels to check): `bbox` = `[x, y, width, height]` in pixels, the outline of each insect as a
   `segmentation` polygon (segmentation models), and the category = the taxon (or the detector's label when there is
   no classifier or it is unsure). Each annotation also keeps `score`, `label`, `taxon`, `taxon_score`, `taxon_rank`.
-- `all_detections.csv` and `coco.json`: all images of a folder run in one table / one COCO file (`file_name` relative
-  to the folder)
+- `<image>_isir.json`: the same in **ISIR**, the shared format of the InsectAI model database (boxes with a
+  bottom-left origin; the classifier's answers linked by instance id). **[How it is filled, with examples](docs/ISIR.md)**.
+- `all_detections.csv`, `coco.json` and `isir.jsonl`: all images of a folder run in one table / one COCO file / one
+  ISIR record per line (`file_name` relative to the folder)
 
 ### Camtrap DP
 
@@ -335,9 +337,6 @@ With `--camtrapdp`, the zoo also writes a [Camtrap DP](https://camtrap-dp.tdwg.o
 camera-trap data (read by GBIF, Agouti, camtraptor): `datapackage.json`, `deployments.csv`, `media.csv` and
 `observations.csv`. Give the camera position (`--latitude`, `--longitude`) and check `CAMTRAPDP_INFO` at the top of
 `main.py` first. **[How each field is filled, and what GBIF needs](docs/CAMTRAP_DP.md)**.
-
-A draft of a shared *golden* JSON format (from the team's whiteboard; not produced yet) is in
-[docs/GOLDEN_FORMAT.md](docs/GOLDEN_FORMAT.md).
 
 ---
 
@@ -396,6 +395,7 @@ a `taxon_rank`. Any detector works with any classifier.
 | Page | What it covers |
 |---|---|
 | [Models in detail](docs/MODELS.md) | each model: what it is for, authors, paper, code, weights, licence |
+| [ISIR output](docs/ISIR.md) | the model database's shared format: how each key is filled, validated examples |
 | [Camtrap DP export](docs/CAMTRAP_DP.md) | how the camera-trap data package is filled, time zones, GBIF |
 | [How weights are downloaded](docs/WEIGHTS.md) | sources, checksums, offline use, where the weights are kept |
 | [GPU / CPU and hardware check](docs/HARDWARE.md) | device choice, CPU fallback, `--check`, getting the GPU to work |

@@ -54,6 +54,7 @@ HF_TOKEN = ""
 # -------------------------------------------------------------------------------------------------------------------
 
 import argparse
+import json
 import os
 import sys
 from collections import Counter
@@ -81,6 +82,7 @@ from zoo.registry import CLASSIFIERS, MODELS, get_classifier, get_model, models_
 from zoo import registry                                                                  # noqa: E402
 
 registry.BIOCLIP_INSECT_TAXA = BIOCLIP_INSECT_TAXA
+export.TIMEZONE = CAMTRAPDP_INFO.get("timezone")                  # ISIR: capture times in UTC only with a known zone
 
 EXAMPLES = """
 examples:
@@ -122,8 +124,8 @@ def build_parser():
     p.add_argument("--ui", action="store_true", help="open the web UI (the default when no arguments are given)")
     p.add_argument("--camtrapdp", "--camtrapDP", "--camtrap_dp", "--camtrap-dp", action="store_true",
                    help="also write a Camtrap DP data package (camera-trap data standard) to <output>/camtrap-dp/")
-    p.add_argument("--latitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
-    p.add_argument("--longitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
+    p.add_argument("--latitude", type=float, help="camera position for ISIR and Camtrap DP (decimal degrees; default: photo GPS)")
+    p.add_argument("--longitude", type=float, help="camera position for ISIR and Camtrap DP (decimal degrees; default: photo GPS)")
     p.add_argument("--deployment_id", help="Camtrap DP: camera / site name (default: the images folder's name)")
     p.add_argument("--weights_dir", help="where model weights are kept (default: WEIGHTS_DIR in main.py, else weights/)")
     p.add_argument("--port", type=int, help="port for the web UI (default: first free port from 7860)")
@@ -229,10 +231,13 @@ def run_cli(args, card, classifier):
     for name, value, low, high in (("latitude", args.latitude, -90, 90), ("longitude", args.longitude, -180, 180)):
         if value is not None and not low <= value <= high:
             sys.exit("--%s must be between %d and %d (got %s)" % (name, low, high, value))
-    rows, failed, entries = [], [], []
+    lat, lon = (args.latitude if args.latitude is not None else CAMTRAPDP_INFO.get("latitude"),
+                args.longitude if args.longitude is not None else CAMTRAPDP_INFO.get("longitude"))
+    export.LOCATION = (lat, lon) if lat is not None and lon is not None else None     # ISIR: photos without GPS
+    rows, failed, entries, isir_files = [], [], [], []
     for n, path in enumerate(images, 1):
         try:
-            image, dets, secs, _ = zoo.run_file(path, threshold, iou, out_dir, prompt, classes, cls_threshold)
+            image, dets, secs, files = zoo.run_file(path, threshold, iou, out_dir, prompt, classes, cls_threshold)
         except Exception as e:
             print("[%d/%d] %s: FAILED (%s)" % (n, len(images), os.path.basename(path), e))
             failed.append(path)
@@ -244,11 +249,16 @@ def run_cli(args, card, classifier):
         rows += [d.row(os.path.basename(path), card.name, classifier.name if classifier else "") for d in dets]
         entries.append(export.Entry(path, os.path.relpath(path, folder) if folder else os.path.basename(path),
                                     image.shape[1], image.shape[0], dets))
+        isir_files += [f for f in files if f.endswith("_isir.json")]
 
     cls_name = classifier.name if classifier else ""
     if len(images) > 1:
         results.write_summary_csv(os.path.join(out_dir, "all_detections.csv"), rows)
         export.write_coco(os.path.join(out_dir, "coco.json"), entries, card.name, cls_name)
+        with open(os.path.join(out_dir, "isir.jsonl"), "w", encoding="utf-8") as f:     # one ISIR record per line
+            for p in isir_files:
+                with open(p, encoding="utf-8") as g:
+                    f.write(json.dumps(json.load(g)) + "\n")
     if camtrapdp and entries:
         write_camtrapdp(args, out_dir, entries, card, classifier)
     print("\nDone: %d detection(s) in %d image(s)%s. Results in:\n  %s"

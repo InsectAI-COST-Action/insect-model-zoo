@@ -123,8 +123,10 @@ class Zoo:
         dets, secs = self.predict(image, threshold, iou, prompt)
         secs += self.classify(image, dets, classes)
         _apply_taxon_threshold(dets, cls_threshold)
+        meta = {"config": {"threshold": threshold, "iou": iou, "prompt": prompt, "classes": classes,
+                           "cls_threshold": cls_threshold}, "device": self.device}
         files = results.save(path, image, dets, out_dir, self.card.name,
-                             self.classifier.card.name if self.classifier.card else "")
+                             self.classifier.card.name if self.classifier.card else "", meta)
         return image, dets, secs, files
 
     def run_classify_only(self, path, out_dir, classes=None, cls_threshold=None):
@@ -135,7 +137,8 @@ class Zoo:
         secs = self.classify(image, dets, classes)
         _apply_taxon_threshold(dets, cls_threshold)
         name = self.classifier.card.name if self.classifier.card else ""
-        files = results.save(path, image, dets, out_dir, "whole-image", name)
+        meta = {"config": {"classes": classes, "cls_threshold": cls_threshold}, "device": self.classifier.device}
+        files = results.save(path, image, dets, out_dir, "whole-image", name, meta)
         return image, dets, secs, files
 
 
