@@ -15,15 +15,23 @@
   --zoo-border: #dcdcd4; /* the one border colour: cards, inputs, the open model list */
   --zoo-list-shadow: 0 12px 28px rgba(20, 20, 17, .12);
   --zoo-divider: #e6e6de; /* the line between two models in the list */
-  --zoo-text-dim: #5c5c55; /* the upload hint */
 
-  /* the green accent (model-db: --accent / --accent-dim) */
+  /* the page's text: two greys for everything plain - primary for names and titles, secondary for
+     hints and quiet text. Gradio's own text colours read them (below), so the two cover the whole UI */
+  --zoo-text-primary: #1a1a17; /* titles, model names, dropdown rows, the block titles */
+  --zoo-text-secondary: #5c5c55; /* the upload hint, the run summary, the header's quiet bits */
+
+  /* neutral shades for the open model list: a hovered row, the selected row - NOT green */
+  --zoo-list-hover: #f0f0ea;
+  --zoo-list-selected: #e8e8e0;
+
+  /* the green accent (model-db: --accent / --accent-dim). The bright brand green stays with the
+     logo, the title's "InsectAI" and the Detect button; everything else uses the calm one */
   --zoo-green-text: #2f6f4e; /* emphasised text, the detector pill, the live slider value */
-  --zoo-green-handle: #2f6f4e; /* the slider handle */
-  --zoo-green-bg: #d9e8df; /* the selected row, the detector pill */
-  --zoo-green-bg-soft: #e8f0ea; /* a hovered row, the live slider value box */
+  --zoo-green-soft: #7fc4a0; /* the slider's handle and track, the tile buttons' icons */
+  --zoo-green-bg: #d9e8df; /* the detector pill */
+  --zoo-green-bg-soft: #e8f0ea; /* the live slider value box */
   --zoo-green-border: #b9d4c3;
-  --zoo-green-bar: #2f6f4e; /* the bar on the left of the selected row */
   --zoo-handle-shadow: 0 1px 4px rgba(20, 20, 17, .35);
   --zoo-veil: rgba(20, 20, 17, .72); /* the hover veil over a filled image tile: the palette's warm dark */
   --zoo-green-brand: #2fb44a; /* the green disc of the InsectAI icon: the title's "InsectAI" matches it */
@@ -38,11 +46,12 @@
   --block-border-color: var(--zoo-border);
   --border-color-primary: var(--zoo-border);
   --body-background-fill: var(--background-fill-primary); /* Gradio reads this one for the body */
-  --body-text-color: #1a1a17;
-  --body-text-color-subdued: #5c5c55;
+  --body-text-color: var(--zoo-text-primary); /* Gradio's own text follows the two zoo greys */
+  --body-text-color-subdued: var(--zoo-text-secondary);
   --input-background-fill: #ffffff;
   --input-border-color: var(--zoo-border);
   --input-radius: 12px; /* the closed model field and the text inputs, rounder like the cards */
+  --slider-color: var(--zoo-green-soft); /* Soft's own slider green is bright: the calm one instead */
   /* the Detect button: the same green as the logo disc and the title's "InsectAI" */
   --button-primary-background-fill: #2fb44a;
   --button-primary-background-fill-hover: #29a042;
@@ -56,13 +65,18 @@ body.dark,
 :root.dark,
 :root .dark {
   --zoo-page-bg: #1f2227; /* cards: slightly lighter than the page */
-  --zoo-border: #23272c;
+  --zoo-border: #34383f;
   --zoo-list-shadow: 0 12px 28px rgba(0, 0, 0, .5);
   --zoo-divider: #2a2e34;
-  --zoo-text-dim: #b0b0a8;
+
+  --zoo-text-primary: #e9e9e4; /* titles, model names, dropdown rows, the block titles */
+  --zoo-text-secondary: #b0b0a8; /* the upload hint, the run summary, the header's quiet bits */
+
+  --zoo-list-hover: #23272d;
+  --zoo-list-selected: #2b3037;
 
   --zoo-green-text: #7fc4a0;
-  --zoo-green-handle: #7fc4a0;
+  --zoo-green-soft: #7fc4a0;
   --zoo-green-bg: #294233;
   --zoo-green-bg-soft: #22322a;
   --zoo-green-border: #3a5a48;
@@ -72,17 +86,18 @@ body.dark,
   --background-fill-primary: #16171a;
   --layout-gap: 12px;
   --background-fill-secondary: #24272c;
-  --block-background-fill: #141517;
+  --block-background-fill: #1d1f23;
   --block-radius: 16px;
   --block-border-width: 1px;
   --block-border-color: var(--zoo-border);
   --border-color-primary: var(--zoo-border);
   --body-background-fill: var(--background-fill-primary);
-  --body-text-color: #e9e9e4;
-  --body-text-color-subdued: #b0b0a8;
+  --body-text-color: var(--zoo-text-primary);
+  --body-text-color-subdued: var(--zoo-text-secondary);
   --input-background-fill: #24272c;
   --input-border-color: var(--zoo-border);
   --input-radius: 12px;
+  --slider-color: var(--zoo-green-soft);
   --button-primary-background-fill: #2fb44a;
   --button-primary-background-fill-hover: #29a042;
   --button-primary-text-color: #ffffff;

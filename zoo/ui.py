@@ -10,7 +10,8 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, SPECIES_TABLE_SURE, bioclip_empty_text, model_db_url,
+from .registry import (BENCHMARK_DB, CLASSIFIERS, GATED_GUIDE_URL, MODELS, MODEL_DB, SPECIES_TABLE_SURE,
+                       bioclip_empty_text, model_db_url,
                        get_classifier, get_model,
                        display_name, download_size, group_default, group_of, groups, clean_latin_names,
                        size_text, tags)
@@ -141,10 +142,21 @@ PAGE_JS = """() => {
       tile.querySelectorAll('.icon-button-wrapper').forEach(w => {  // gradio re-creates the buttons row
         if (!ov.contains(w)) ov.appendChild(w);                    // whenever an image loads, wherever it
       });                                                          // pleases: keep it in the stack, under
-      const im = tile.querySelector('.image-frame img');            // the icon, title and subtext. The image's
-      const ar = im && im.naturalWidth ?                            // aspect ratio tells ui.css how wide the
-          Math.round(im.naturalWidth / im.naturalHeight * 1000) / 1000 : 0;   // card may be (see there)
-      if ((+tile.style.getPropertyValue('--zoo-ar') || 0) !== ar) tile.style.setProperty('--zoo-ar', ar);
+      if (i === 0 && !ov.dataset.zooWired) {  // the INPUT tile only. A click on its hover veil swaps
+        ov.dataset.zooWired = '1';           // the photo: gradio removes its upload button once an
+        ov.addEventListener('click', e => {  // image is shown, so the veil clears the tile first -
+          if (e.target.closest('button, a')) return;              // then the upload UI comes back, and
+          if (!tile.querySelector('img')) return;                 // decorate (below) clicks its file
+          const x = [...tile.querySelectorAll('button')].find(    // input as soon as it exists. The
+            b => (b.getAttribute('aria-label') || '').includes('Remove'));  // tile's own buttons keep
+          if (x) { x.click(); tile.dataset.zooPick = '1'; tile.dataset.zooWait = '0'; }  // their clicks
+        });
+      }
+      if (tile.dataset.zooPick === '1') {   // the veil click above just cleared the tile: gradio is
+        const inp = tile.querySelector('input[type="file"]');   // rebuilding its upload UI - open the
+        if (inp) { inp.click(); tile.dataset.zooPick = ''; }     // file picker the moment it is there
+        else if (++tile.dataset.zooWait > 8) tile.dataset.zooPick = '';  // not coming: give up quietly
+      }
     });
     const btn = document.getElementById('zoo-theme-btn');
     if (btn && !btn.dataset.zooTheme) {        // this script runs before Gradio renders the blocks, so
@@ -209,10 +221,14 @@ def header_html():
     <a href="https://insectai.eu/" target="_blank"><img src="%s" alt="InsectAI" class="zoo-header-icon"></a>
     <span class="zoo-title"><span class="zoo-green">InsectAI</span> Model Zoo</span>
   </div>
-  <button id="zoo-theme-btn" class="zoo-theme-btn" title="Dark / light" aria-label="Switch between dark and light">
-    %s%s
-  </button>
-</div>""" % (icon, MOON_ICON, SUN_ICON)
+  <div class="zoo-header-right">
+    <span class="zoo-db-links"><a href="{model_db}" target="_blank">Model database</a> &middot;
+      <a href="{bench_db}" target="_blank">Benchmark database</a></span>
+    <button id="zoo-theme-btn" class="zoo-theme-btn" title="Dark / light" aria-label="Switch between dark and light">
+      %s%s
+    </button>
+  </div>
+</div>""".format(model_db=MODEL_DB, bench_db=BENCHMARK_DB) % (icon, MOON_ICON, SUN_ICON)
 
 
 def footer_html():

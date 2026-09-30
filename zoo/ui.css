@@ -37,16 +37,15 @@ ul.option-list li[role="option"] + li[role="option"]::before {
 
 ul.option-list li[role="option"]:hover,
 ul.option-list li[role="option"].active {
-  background: var(--zoo-green-bg-soft) !important;
+  background: var(--zoo-list-hover) !important; /* a neutral shade, not green */
 }
 
 ul.option-list li[role="option"].selected {
-  background: var(--zoo-green-bg) !important;
+  background: var(--zoo-list-selected) !important; /* a neutral shade, not green */
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--zoo-green-bar);
 }
 
-/* no check mark: the green row shows it */
+/* no check mark: the bold row shows it */
 ul.option-list li .inner-item {
   display: none;
 }
@@ -182,18 +181,18 @@ input[role="combobox"] {
 .zoo-overlay > svg {          /* only the big tile icon: the button icons further down */
   width: 44px;                 /* keep the colour they get from their own button */
   height: 44px;
-  color: var(--zoo-text-dim);
+  color: var(--zoo-text-secondary);
 }
 
 .zoo-overlay-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--zoo-text-dim);
+  color: var(--zoo-text-secondary);
 }
 
 .zoo-overlay-sub {
   font-size: var(--zoo-font-hint);
-  color: var(--zoo-text-dim);
+  color: var(--zoo-text-secondary);
 }
 
 /* the two overlay states: an EMPTY tile shows its icon, title and description, plainly on the card;
@@ -210,6 +209,8 @@ input[role="combobox"] {
 .zoo-image:has(img):hover .zoo-overlay {
   opacity: 1;
   background: var(--zoo-veil);
+  pointer-events: auto; /* the veil is clickable: it swaps the photo (ui.py wires the click) */
+  cursor: pointer;
 }
 
 .zoo-image:has(img):hover .zoo-overlay > svg,
@@ -248,7 +249,7 @@ input[role="combobox"] {
   border-radius: 8px !important;
   box-shadow: none !important;
   background: rgba(255, 255, 255, .85) !important;
-  color: var(--zoo-green-brand) !important; /* the ICON is green in the light theme, not the fill */
+  color: var(--zoo-green-soft) !important; /* the ICON is green in the light theme, not the fill */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -286,7 +287,7 @@ body.dark .zoo-image .icon-button-wrapper button {
 .zoo-result {
   text-align: center;
   font-size: var(--zoo-font-hint);
-  color: var(--zoo-text-dim);
+  color: var(--zoo-text-secondary);
   padding: 0 8px !important;
 }
 
@@ -350,9 +351,30 @@ body.dark .zoo-image .icon-button-wrapper button {
   border: 1px solid var(--zoo-border);
   box-shadow: none !important; /* Gradio shadows every button: an outline is enough here */
   background: transparent !important;
-  color: var(--zoo-text-dim) !important;
+  color: var(--zoo-text-secondary) !important;
   cursor: pointer;
   line-height: 0;
+}
+
+/* the model / benchmark database links: small and quiet, next to the theme button on the right */
+.zoo-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.zoo-db-links {
+  font-size: var(--zoo-font-hint);
+  color: var(--zoo-text-secondary);
+}
+
+.zoo-db-links a {
+  color: var(--zoo-text-secondary) !important; /* .prose would make them link-coloured and underlined */
+  text-decoration: none !important;
+}
+
+.zoo-db-links a:hover {
+  text-decoration: underline !important;
 }
 
 /* dark page: a light icon on the dark button (!important: Gradio's own button colour rule would win) */
@@ -361,7 +383,7 @@ body.dark .zoo-theme-btn {
 }
 
 .zoo-theme-btn:hover {
-  background: var(--zoo-green-bg-soft);
+  background: var(--zoo-list-hover); /* a neutral shade, like a hovered model row */
 }
 
 .zoo-theme-btn svg {
@@ -389,7 +411,7 @@ body.dark .zoo-theme-btn .zoo-icon-moon {
 }
 
 .zoo-theme-btn svg * {
-  stroke: var(--zoo-text-dim) !important;
+  stroke: var(--zoo-text-secondary) !important;
 }
 
 body.dark .zoo-theme-btn svg * {
@@ -469,55 +491,15 @@ main.contain > .column {
   height: 44px;
 }
 
-/* the image previews: tall on a big window, but capped by the window's height so the page (now with the
-   footer at the bottom) never grows taller than the screen. The -55px makes room for the footer;
-   side panels - vertical tabs, devtools - take width away, not height */
+/* the image tiles: fixed-size cards, empty or filled - the card never scales with its image. The
+   image keeps its own aspect inside (Gradio scales it down whole), so a photo narrower than the
+   card shows the card's border at its sides. Tall on a big window, but capped by the window's
+   height so the page (footer at the bottom) never grows taller than the screen */
 .zoo-image {
-  height: clamp(200px, calc(38vh - 62px), 440px) !important; /* the EMPTY tile: a fixed drop zone */
+  height: clamp(240px, calc(50vh - 62px), 560px) !important;
   padding: 2px !important; /* almost none: the image nearly touches the tile's border */
   border-style: solid !important; /* Gradio dashes the image blocks: the tiles are plain cards */
   border-radius: 6px !important; /* the viewers keep a small radius: only the other cards round over */
-}
-
-/* the ROOT CAUSE of "padding" around the image: the tile above has a fixed height, and Gradio scales the
-   image down to fit that fixed frame (its own .image-frame img rule: width/height 100%,
-   object-fit: scale-down) and centres it - so with a photo whose aspect is narrower than the tile's,
-   the leftover width shows as an empty band at the sides, far bigger than the 2px padding. The real
-   fix: once an image is in, the CARD itself hugs the image. Its width becomes
-   min(column, height-cap x aspect) - the cap is the same clamp as the empty tile's, so the page still
-   fits one screen - and its height then follows the image. --zoo-ar is the image's aspect, set by the
-   page script (ui.py) every time an image loads; 1 is only the fallback before the script runs */
-/* an EMPTY tile keeps its half of the row: once the tile next to it hugs its image and stops
-   growing, Gradio would otherwise stretch this one over the whole free width */
-.zoo-image:not(:has(img)) {
-  max-width: calc(50% - 8px) !important;
-  margin-inline: auto !important;
-}
-
-.zoo-image:has(img) {
-  width: min(100%, calc(clamp(200px, calc(38vh - 62px), 440px) * var(--zoo-ar, 1))) !important;
-  min-width: 0 !important; /* Gradio's own minimum (160px) would keep a tall thin photo wide - and so
-                              taller than the height cap */
-  margin-inline: auto !important; /* the narrower card stays centred in its column */
-  height: auto !important;
-  flex: none !important; /* Gradio grows every component to fill the row (its "scale"): the width
-                             above would be ignored without this */
-}
-
-/* the chain between the card and the image: Gradio stretches every one of these to the full fixed
-   frame (width/height 100%) - their height must follow the image instead, or they keep the card tall */
-.zoo-image:has(img) .image-container,
-.zoo-image:has(img) .image-container > button,
-.zoo-image:has(img) .image-frame {
-  height: auto !important;
-}
-
-/* the image itself fills the card: full width, its own aspect for the height (Gradio's scale-down
-   would letterbox it inside the frame); object-fit only guards against a flash of a wrong size */
-.zoo-image img {
-  width: 100% !important;
-  height: auto !important;
-  object-fit: contain !important;
 }
 
 /* the (i) next to each model list: a small round link to the model's page in the InsectAI model database, with a
@@ -547,7 +529,7 @@ main.contain > .column {
   align-items: center;
   justify-content: center;
   font: italic 700 .95rem/1 Georgia, "Times New Roman", serif;
-  color: var(--zoo-text-dim) !important;
+  color: var(--zoo-text-secondary) !important;
   border: 1.5px solid var(--zoo-border);
   background: var(--block-background-fill);
   text-decoration: none !important;
