@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: >-
+  If you use the InsectAI Model Zoo, please cite it as below, and also cite the papers of the models you use
+  (see "Credits and citation" in the README).
+title: InsectAI Model Zoo
+type: software
+authors:
+  - family-names: Markoff
+    given-names: Hugo
+  - name: InsectAI COST Action CA22129 contributors
+date-released: "2026-09-30"
+repository-code: "https://github.com/InsectAI-COST-Action/insect-model-zoo"
+url: "https://github.com/InsectAI-COST-Action/insect-model-zoo"
+abstract: >-
+  Ready-to-run AI models that find insects in images and say what they are: one install, one command line and a small
+  web UI, with every model credited to its original authors.
+keywords:
+  - insects
+  - biodiversity monitoring
+  - object detection
+  - image classification
+  - camera traps
+  - model zoo

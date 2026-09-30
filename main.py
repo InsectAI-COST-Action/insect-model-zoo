@@ -8,7 +8,7 @@ InsectAI model zoo - find insects in your images (detector) and say what they ar
     python main.py --check                           checks your hardware (GPU / RAM) and which models fit
     python main.py --help                            all options
 
-Weights are downloaded from the original authors on first use (see README "How weights are downloaded").
+Weights are downloaded from the original authors on first use (see docs/WEIGHTS.md).
 """
 
 # ------------------------------------------------------------------ settings (defaults; command-line arguments override)

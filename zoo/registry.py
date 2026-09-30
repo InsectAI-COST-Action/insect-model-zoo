@@ -191,8 +191,8 @@ _MOTHBOT = dict(
     default_classifier="bioclip-2",      # upstream names them with BioCLIP 2
     min_ram_gb=2, min_vram_gb=1,
     code_url="https://github.com/Digital-Naturalism-Laboratories/Mothbot_Process",
-    paper="Szczygieł, Dent & Quitmeyer (2025). Mothbox: inexpensive, lightweight, automated light trap for scalable "
-          "insect biodiversity monitoring. bioRxiv. (Mothbot Detect itself has no paper yet.)",
+    paper="Szczygieł, Johns, Fortet, Dent, Quitmeyer & Quitmeyer (2025). Mothbox and Mothbot: automated light trap and "
+          "data processing system for scalable insect monitoring. bioRxiv.",
     doi="10.64898/2025.12.03.692171",
     license="AGPL-3.0",                  # the repository has no licence file; model database + Ultralytics stamp
     extra_links={"Mothbox": "https://github.com/Digital-Naturalism-Laboratories/Mothbox"},
@@ -217,9 +217,9 @@ _GDINO = dict(
     default_iou=0.5,                     # boxes are merged here (the model itself does no NMS)
     label="",                            # the label is the word of the text prompt that matched
     code_url="https://github.com/IDEA-Research/GroundingDINO",
-    paper="Liu, Zeng, Ren et al. (2024). Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object "
-          "Detection. ECCV 2024.",
-    doi="10.48550/arXiv.2303.05499",
+    paper="Liu, Zeng, Ren et al. (2024). Grounding DINO: Marrying DINO with Grounded Pre-training for Open-Set Object "
+          "Detection. In Computer Vision - ECCV 2024, pp. 38-55. Springer.",
+    doi="10.1007/978-3-031-72970-6_3",
     license="Apache-2.0",
     text_prompt=True, default_prompt="insect", model_db="grounding-dino",
 )
