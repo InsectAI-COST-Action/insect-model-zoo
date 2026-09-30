@@ -9,7 +9,7 @@ import numpy as np
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".heic", ".heif")
 CSV_FIELDS = ["image", "model", "x1", "y1", "x2", "y2", "confidence", "label",
-              "classifier", "taxon", "taxon_score", "taxon_rank"]
+              "classifier", "taxon", "taxon_score", "taxon_rank", "angle"]
 
 
 @dataclass
@@ -18,27 +18,30 @@ class Detection:
     y1: float
     x2: float
     y2: float
-    confidence: float
+    confidence: float         # the detector's score; None when there was no detector (whole-image mode)
     label: str
     polygon: list = None      # [[x, y], ...] outline in image pixels, for segmentation models
     taxon: str = ""           # set by a classifier: what the insect is ("Unsure" if the classifier is not sure)
     taxon_score: float = None  # classifier confidence 0-1
     taxon_rank: str = ""      # e.g. species / family / order, when the classifier knows it
     taxon_options: list = None  # [(name, score, rank), ...] deepest first: broader names to fall back on (BioCLIP)
+    angle: float = None       # oriented boxes: long side vs the image x-axis, degrees counter-clockwise (-90, 90];
+                              # the 4 corners are in polygon, x1..y2 is the upright hull. None = an upright box
 
     def row(self, image, model, classifier=""):
         return {"image": image, "model": model, "x1": round(self.x1), "y1": round(self.y1), "x2": round(self.x2),
-                "y2": round(self.y2), "confidence": round(self.confidence, 4), "label": self.label,
+                "y2": round(self.y2),
+                "confidence": "" if self.confidence is None else round(self.confidence, 4), "label": self.label,
                 "classifier": classifier, "taxon": self.taxon,
                 "taxon_score": "" if self.taxon_score is None else round(self.taxon_score, 4),
-                "taxon_rank": self.taxon_rank}
+                "taxon_rank": self.taxon_rank, "angle": "" if self.angle is None else round(self.angle, 2)}
 
     def caption(self):
         if self.taxon and self.taxon != "Unsure":
             return "%s %.2f" % (self.taxon, self.taxon_score or 0)
         unsure = " (unsure)" if self.taxon == "Unsure" else ""
         if not self.label:                       # e.g. a whole-image box (classifier only): no detector label
-            return "Unsure" if unsure else "%.2f" % self.confidence
+            return "Unsure" if unsure or self.confidence is None else "%.2f" % self.confidence
         return "%s %.2f%s" % (self.label, self.confidence, unsure)
 
 
@@ -66,10 +69,16 @@ def draw(image_rgb, detections):
     font = max(0.5, max(h, w) / 2000)
     box_color, outline_color = (40, 200, 40), (255, 190, 0)     # green boxes, cyan-ish outlines (BGR)
     for d in detections:
-        if d.polygon is not None and len(d.polygon) > 2:
-            cv2.polylines(img, [np.round(np.asarray(d.polygon)).astype(np.int32)], True, outline_color, thick)
         p1, p2 = (int(round(d.x1)), int(round(d.y1))), (int(round(d.x2)), int(round(d.y2)))
-        cv2.rectangle(img, p1, p2, box_color, thick)
+        if d.angle is not None and d.polygon is not None:          # oriented box: draw the rotated box itself
+            corners = np.round(np.asarray(d.polygon)).astype(np.int32)
+            cv2.polylines(img, [corners], True, box_color, thick)
+            top = corners[corners[:, 1].argmin()]
+            p1, p2 = (int(top[0]), int(top[1])), (int(top[0]), int(corners[:, 1].max()))
+        else:
+            if d.polygon is not None and len(d.polygon) > 2:
+                cv2.polylines(img, [np.round(np.asarray(d.polygon)).astype(np.int32)], True, outline_color, thick)
+            cv2.rectangle(img, p1, p2, box_color, thick)
         text = d.caption()
         (tw, th), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font, thick)
         ty = p1[1] - 4 if p1[1] - th - base - 4 > 0 else p2[1] + th + 4

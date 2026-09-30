@@ -156,6 +156,18 @@ def describe_device(device, hw):
     return "cpu (%s, %d cores)" % (hw.cpu, hw.cpu_cores)
 
 
+def _free_gb(folder):
+    """Free space where the weights go (the folder, or the nearest existing parent)."""
+    import shutil
+    path = os.path.abspath(folder)
+    while not os.path.exists(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            raise OSError("no such drive: %s" % folder)
+        path = parent
+    return shutil.disk_usage(path).free / 1024 ** 3
+
+
 def report(hw, cards=()):
     lines = ["OS:       %s" % hw.os,
              "CPU:      %s, %d cores" % (hw.cpu, hw.cpu_cores),
@@ -170,18 +182,23 @@ def report(hw, cards=()):
         lines.append("GPU:      none usable -> models run on CPU (slower, but they work)")
     device = pick_device("auto", hw)
     lines.append("Default device: %s" % describe_device(device, hw))
+    from . import weights
+    try:
+        lines.append("Weights:  %s (%.1f GB free)" % (weights.WEIGHTS_DIR, _free_gb(weights.WEIGHTS_DIR)))
+    except OSError:
+        lines.append("Weights:  %s - NOT REACHABLE (drive not plugged in?); set WEIGHTS_DIR in main.py or "
+                     "--weights_dir" % weights.WEIGHTS_DIR)
     if cards:
         lines.append("")
         lines.append("Models on %s:" % device)
         for c in cards:
             dev, warns = check_model(c, device, hw)
-            status = "OK" if not warns else "! " + " ".join(warns)
+            status = ("OK" if not warns else "! " + " ".join(warns)) + " | " + weights.weights_status(c)
             if c.gated:
-                from .weights import hf_token, is_downloaded
-                status += " | GATED: " + ("downloaded" if is_downloaded(c) else "token found (access must be "
-                                          "approved)" if hf_token() else "no Hugging Face token, see "
+                status += " | GATED: " + ("ready" if weights.is_downloaded(c) else "token found (access must be "
+                                          "approved)" if weights.hf_token() else "no Hugging Face token, see "
                                           "docs/GATED_MODELS.md")
-            lines.append("  %-16s %s" % (c.name, status))
+            lines.append("  %-20s %s" % (c.name, status))
     for n in hw.notes:
         lines.append("")
         lines.append("NOTE: " + n)

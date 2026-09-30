@@ -33,34 +33,27 @@ You can already do step 3 and 4 while you wait.
 
 (A classic token of type **Read** works too.)
 
-## Step 4: Paste the token into `main.py`
+## Step 4: Save the token (not in `main.py`)
 
-Open `main.py` (e.g. in VS Code). Near the top you find:
+In the terminal, with the `.venv` active, run:
 
-```python
-HF_TOKEN = ""
+```bash
+hf auth login
 ```
 
-Paste your token between the quotes and save:
+Paste the token when it asks (nothing shows while you paste, that is normal) and press Enter; answer `n` to
+*"Add token as git credential?"*. The token is saved in your user folder, outside the zoo, and the zoo finds it
+automatically. Done.
 
-```python
-HF_TOKEN = "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-```
+**Or** put the token in a file called `hf_token.txt` next to `main.py` (just the token, one line). The zoo reads it,
+and git ignores that file (see `.gitignore`), so it is never uploaded, also not from forks. **Or** set the environment
+variable `HF_TOKEN` (PowerShell `$env:HF_TOKEN="hf_..."`, macOS/Linux `export HF_TOKEN=hf_...`).
 
 > [!WARNING]
-> **Keep your token private.** Do not share `main.py` with your token in it, and never push it to GitHub. If it
-> ever leaks, delete it on https://huggingface.co/settings/tokens and create a new one (the old one stops working
-> immediately).
-
-<details>
-<summary>Other ways (advanced)</summary>
-
-Instead of editing `main.py` you can:
-- set the environment variable `HF_TOKEN` (e.g. PowerShell `$env:HF_TOKEN="hf_..."`, macOS/Linux
-  `export HF_TOKEN=hf_...`), or
-- log in once with `hf auth login`. The zoo finds the saved login automatically.
-
-</details>
+> **Keep your token private: do not paste it into `main.py`.** `HF_TOKEN = "..."` at the top of `main.py` still works,
+> but git uploads `main.py` with the code (a `.gitignore` cannot hide one line of a file git tracks), so the zoo warns
+> you every time. If a token ever leaks, delete it on https://huggingface.co/settings/tokens and create a new one (the
+> old one stops working immediately).
 
 ## Step 5: Run it
 
@@ -76,7 +69,7 @@ python main.py -m sam3 -p "bee" -i images/test_image.jpg
 To check your setup: `python main.py --check` shows a `GATED:` status next to `sam3`.
 
 SAM 3 is big: with an NVIDIA GPU (6 GB free or more) an image takes a few seconds. It also runs on CPU, but slowly
-(about 40 s per image on a fast laptop).
+(about 40 s per image on a fast laptop, 1 to 1.5 minutes on a 4-core laptop CPU).
 
 ---
 
@@ -84,7 +77,7 @@ SAM 3 is big: with an NVIDIA GPU (6 GB free or more) an image takes a few second
 
 | The zoo says | What it means | What to do |
 |---|---|---|
-| `No Hugging Face token found` | `HF_TOKEN` in `main.py` is empty | step 4 |
+| `No Hugging Face token found` | no `hf auth login`, no `hf_token.txt`, no `HF_TOKEN` | step 4 |
 | `error 401` | Hugging Face does not know this token | copy it again, or create a new one (step 3) |
 | `error 403` | the token works, but you have no access yet | wait for approval (step 2, check the *gated-repos* page), or edit the token and tick the gated-repos box (step 3) |
 | very slow / out of memory | SAM 3 is a large model | close other programs, or use a GPU; the zoo switches to CPU by itself if the GPU is too small |

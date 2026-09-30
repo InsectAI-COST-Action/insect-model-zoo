@@ -57,6 +57,7 @@ class ModelCard:
     group: str = ""            # model family shown once in the UI list, e.g. "flat-bug" ("" = the name itself)
     variant: str = ""          # size / version within the family, e.g. "M" (shown when the family is picked)
     gated: str = ""            # Hugging Face page where access must be requested (needs HF_TOKEN); "" = open download
+    default: bool = False      # the version picked when its family is chosen (else the largest one)
     model_db: str = ""         # its page in the InsectAI model database (MODEL_DB/models/<page>/); "" = none yet
     datasets: tuple = ()       # (page, title) of its datasets in the InsectAI benchmark database (BENCHMARK_DB)
     species_table: tuple = ()  # zero-shot classifiers: WeightFiles of pre-computed text features for every taxon the
@@ -112,7 +113,7 @@ _FLATBUG = dict(
     task="instance segmentation",
     default_threshold=0.2,               # flat-bug DEFAULT_CFG
     default_iou=0.2,
-    label="arthropod",
+    label="insect",                      # detectors say "insect"; naming is the classifier's job
     code_url="https://github.com/darsa-group/flat-bug",
     paper="Svenning, Mougeot, Alison, Chevalier, Chavez Molina, Ong, Bjerge, Carrillo, Høye & Geissmann (2026). "
           "A general method for detection and segmentation of terrestrial arthropods in images. "
@@ -141,6 +142,107 @@ _add(name="flatbug-m-v2", title="flat-bug M v2 (YOLO26m-seg)", architecture="YOL
      min_ram_gb=3, min_vram_gb=2,
      description="Newest flat-bug model (default since flat-bug 1.2), built on YOLO26.",
      **_FLATBUG)
+
+# --------------------------------------------------------------------------- ArthroNat (Remy et al.)
+ARTHRONAT_REV = "8b8dfa2b5904395566232c2308b928f113ee8645"       # Hugging Face commit (same weights as model-db's)
+_ARTHRONAT_HF = "https://huggingface.co/edgaremy/arthropod-detector/resolve/%s/" % ARTHRONAT_REV
+_ARTHRONAT = dict(
+    family="yolo", group="ArthroNat", task="detection",
+    default_threshold=0.5,               # the paper's evaluation confidence
+    default_iou=0.7,                     # Ultralytics' NMS default, used in training and evaluation
+    label="insect",                      # detectors say "insect"; naming is the classifier's job
+    code_url="https://github.com/edgaremy/arthropod-detection-dataset",
+    paper="Remy, Carlier, Massol, Kacimi, Chaine & Cauchoix (2026). Towards a general Detector of terrestrial "
+          "Arthropods in Natural backgrounds. bioRxiv.",
+    doi="10.64898/2026.05.06.723207",
+    license="AGPL-3.0",                  # Hugging Face card (older versions said MIT) and the Ultralytics stamp
+    extra_links={"Hugging Face": "https://huggingface.co/edgaremy/arthropod-detector"},
+    model_db="arthronat",
+)
+for _name, _variant, _file, _nbytes, _sha, _arch, _ram, _vram, _about, _default in [
+        ("arthronat-l", "L", "yolo11l_ArthroNat+flatbug.pt", 51176722,
+         "cdc9228a082ad58cc9c3900138a2ba7490fe3a756816fc7c9385a3c18e982e02", "YOLO11l", 2, 1,
+         "trained on ArthroNat + the flat-bug dataset; the paper's recommended model", True),
+        ("arthronat-n", "N", "yolo11n_ArthroNat+flatbug.pt", 5454170,
+         "222e6b89863d42a7014cf408c74c6da9cd5b7a65bf62c690dd786ae708634580", "YOLO11n", 1.5, 0.5,
+         "small and fast; trained on ArthroNat + the flat-bug dataset", False),
+        ("arthronat-l-mosaic", "L mosaic", "yolo11l_ArthroNat_mosaic33.pt", 51166162,
+         "27c0fe071d5fb4655b04198441100f504b4e0f706382e86d2f0a3314ebaffdd7", "YOLO11l", 2, 1,
+         "trained on ArthroNat only, with a 3 x 3 mosaic augmentation", False),
+        ("arthronat-n-mosaic", "N mosaic", "yolo11n_ArthroNat_mosaic33.pt", 5443610,
+         "00c1dcb611dd70b7493f953c92323baf16d3059f7314fa126a40c89f2fae761c", "YOLO11n", 1.5, 0.5,
+         "small; trained on ArthroNat only, with a 3 x 3 mosaic augmentation", False)]:
+    _add(name=_name, title="ArthroNat %s (%s)" % (_variant, _arch), architecture=_arch, variant=_variant,
+         weights=WeightFile(_file, (_ARTHRONAT_HF + _file.replace("+", "%2B"),), _nbytes, _sha),
+         min_ram_gb=_ram, min_vram_gb=_vram, default=_default,
+         description="Finds arthropods in close-up field photos on natural backgrounds (vegetation, soil, flowers): "
+                     "one class, trained on about 13,600 iNaturalist photos of French terrestrial arthropods; "
+                     + _about + ".",
+         **_ARTHRONAT)
+
+# --------------------------------------------------------------------------- Mothbot Detect (Digital Naturalism Labs)
+MOTHBOT_COMMIT = "7514bee8ace5c9cb859f3566ed3088a7824b692c"
+_MOTHBOT_RAW = ("https://raw.githubusercontent.com/Digital-Naturalism-Laboratories/Mothbot_Process/%s/trained_models/"
+                % MOTHBOT_COMMIT)
+_MOTHBOT = dict(
+    family="yolo_obb", group="Mothbot", task="oriented-box detection", architecture="YOLO26s-OBB",
+    default_threshold=0.25, default_iou=0.7,       # what the Mothbot app uses (with max_det 10000, 1600 px)
+    label="insect",                      # upstream says 'creature' (moths, beetles, flies, spiders)
+    default_classifier="bioclip-2",      # upstream names them with BioCLIP 2
+    min_ram_gb=2, min_vram_gb=1,
+    code_url="https://github.com/Digital-Naturalism-Laboratories/Mothbot_Process",
+    paper="Szczygieł, Dent & Quitmeyer (2025). Mothbox: inexpensive, lightweight, automated light trap for scalable "
+          "insect biodiversity monitoring. bioRxiv. (Mothbot Detect itself has no paper yet.)",
+    doi="10.64898/2025.12.03.692171",
+    license="AGPL-3.0",                  # the repository has no licence file; model database + Ultralytics stamp
+    extra_links={"Mothbox": "https://github.com/Digital-Naturalism-Laboratories/Mothbox"},
+    model_db="mothbot",
+)
+_add(name="mothbot-mbd-1-1", title="Mothbot Detect MBD-1-1 (YOLO26s-OBB)", variant="MBD-1-1", default=True,
+     weights=WeightFile("MBD-1-1.pt", (_MOTHBOT_RAW + "MBD-1-1.pt",), 21692897,
+                        "aa7e881e532d49be305d275766cd73fda0d75a8853d7bf822fc2c8a1e873e44a"),
+     description="Finds every insect on the lit sheet of a light trap (e.g. the Mothbox), with a box turned to fit "
+                 "each body; one class, handles thousands of insects per photo. Newest Mothbot Detect model.",
+     **_MOTHBOT)
+_add(name="mothbot-mbd-1-0", title="Mothbot Detect MBD-1-0 (YOLO26s-OBB)", variant="MBD-1-0",
+     weights=WeightFile("MBD-1-0.pt", (_MOTHBOT_RAW + "MBD-1-0.pt",), 22027036,
+                        "1b2b5d8cc71bcde34878e8cc15db5fab594aa3a292e3663d6218eaef79bd9854"),
+     description="The previous Mothbot Detect model (same size and task as MBD-1-1).",
+     **_MOTHBOT)
+
+# --------------------------------------------------------------------------- Grounding DINO (IDEA Research), text prompt
+_GDINO = dict(
+    family="grounding_dino", group="Grounding DINO", task="detection, text",
+    default_threshold=0.3,               # score of a prompt word (mean of its tokens), see zoo/families/grounding_dino.py
+    default_iou=0.5,                     # boxes are merged here (the model itself does no NMS)
+    label="",                            # the label is the word of the text prompt that matched
+    code_url="https://github.com/IDEA-Research/GroundingDINO",
+    paper="Liu, Zeng, Ren et al. (2024). Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object "
+          "Detection. ECCV 2024.",
+    doi="10.48550/arXiv.2303.05499",
+    license="Apache-2.0",
+    text_prompt=True, default_prompt="insect", model_db="grounding-dino",
+)
+for _name, _variant, _repo, _rev, _nbytes, _sha, _ram, _vram, _files, _default in [
+        ("grounding-dino-base", "Base", "IDEA-Research/grounding-dino-base", "12bdfa3120f3e7ec7b434d90674b3396eccf88eb",
+         933400872, "5548f844c928c4b6f411fa8cbcc2bfa8dbbba437cb1d513975519f93c2a9ed21", 4, 3,
+         ("config.json", "preprocessor_config.json", "special_tokens_map.json", "tokenizer.json",
+          "tokenizer_config.json", "vocab.txt"), True),
+        ("grounding-dino-tiny", "Tiny", "IDEA-Research/grounding-dino-tiny", "a2bb814dd30d776dcf7e30523b00659f4f141c71",
+         689359096, "1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3", 3, 2,
+         ("added_tokens.json", "config.json", "preprocessor_config.json", "special_tokens_map.json", "tokenizer.json",
+          "tokenizer_config.json", "vocab.txt"), False)]:
+    _url = "https://huggingface.co/%s/resolve/%s/" % (_repo, _rev)
+    _add(name=_name, title="Grounding DINO %s (Swin-%s)" % (_variant, "B" if _variant == "Base" else "T"),
+         architecture="Grounding DINO, Swin-%s backbone" % ("B" if _variant == "Base" else "T"), variant=_variant,
+         weights=WeightFile("model.safetensors", (_url + "model.safetensors",), _nbytes, _sha),
+         extra_files=tuple((f, _url + f) for f in _files),
+         min_ram_gb=_ram, min_vram_gb=_vram, default=_default,
+         extra_links={"Hugging Face": "https://huggingface.co/" + _repo},
+         description="Open-vocabulary detector: type what to look for (e.g. 'bee', or 'bee, butterfly') and it boxes "
+                     "every match, each labelled with the word it matched. Boxes only (no outlines); not trained on "
+                     "insects specifically, much smaller than SAM 3 and not gated.",
+         **_GDINO)
 
 # --------------------------------------------------------------------------- SAM 3 (Meta), gated on Hugging Face
 SAM3_COMMIT = "3c879f39826c281e95690f02c7821c4de09afae7"
@@ -297,7 +399,8 @@ def tags(card):
     if card.kind == "classifier":
         out = ["classifier", "zero-shot" if card.classes else "hierarchical"]
     else:
-        out = ["detector"] + (["segmentation"] if "segmentation" in card.task else [])
+        out = ["detector"] + (["segmentation"] if "segmentation" in card.task else []) + \
+            (["oriented box"] if "oriented" in card.task else [])
     if card.text_prompt:
         out.append("text prompt")
     if card.gated:
@@ -325,8 +428,10 @@ def display_name(card):
 
 
 def group_default(group, table):
-    """The version picked when a family is chosen in the UI: the largest one (usually the most accurate)."""
-    return max(groups(table)[group], key=lambda card: card.weights.size)
+    """The version picked when a family is chosen in the UI: the one marked default, else the largest one (usually the
+    most accurate)."""
+    cards = groups(table)[group]
+    return next((c for c in cards if c.default), None) or max(cards, key=lambda card: card.weights.size)
 
 
 def _lookup(name, table, what):

@@ -10,8 +10,7 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import (BENCHMARK_DB, CLASSIFIERS, GATED_GUIDE_URL, MODEL_DB, MODELS, SPECIES_TABLE_SURE,
-                       bioclip_empty_text, dataset_links, model_db_url,
+from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, SPECIES_TABLE_SURE, bioclip_empty_text, model_db_url,
                        get_classifier, get_model,
                        display_name, download_size, group_default, group_of, groups, clean_latin_names,
                        size_text, tags)
@@ -49,6 +48,7 @@ def _page_style():
 # bar) switches it to dark - Gradio follows the computer's dark mode by adding a "dark" class to the page.
 PAGE_JS = """() => {
   const TAGS = __TAGS__;
+  const LINKS = __LINKS__;                 // model family -> its page in the InsectAI model database
   const html = tags => tags.map(t => '<span class="zoo-pill ' + t.replace(' ', '-') + '">' + t + '</span>').join('');
   const put = (parent, before, name) => {
     let box = parent.querySelector(':scope > .zoo-pills');
@@ -101,6 +101,28 @@ PAGE_JS = """() => {
         });
       }
     });
+    fields.forEach(inp => {                // the (i) next to each model list: opens the model's database page
+      const box = inp.closest('.container');
+      if (!box) return;
+      let info = box.querySelector(':scope > .zoo-info');
+      if (!info) {                           // created once; later passes only change what differs, so this
+        info = document.createElement('a');  // never feeds the class-mutation observer
+        info.className = 'zoo-info';
+        info.target = '_blank';
+        info.rel = 'noopener';
+        info.textContent = 'i';
+        info.dataset.tip = 'Learn more about this model in the InsectAI model database';
+        info.setAttribute('aria-label', info.dataset.tip);
+        box.appendChild(info);
+        box.classList.add('zoo-has-info');
+      }
+      const url = LINKS[inp.value] || '';
+      if ((info.getAttribute('href') || '') !== url) {
+        if (url) info.setAttribute('href', url); else info.removeAttribute('href');
+      }
+      const shown = url ? 'visible' : 'hidden';        // hidden, not removed: the list keeps its width
+      if (info.style.visibility !== shown) info.style.visibility = shown;
+    });
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
     fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
     const btn = document.getElementById('zoo-theme-btn');
@@ -131,8 +153,10 @@ PAGE_JS = """() => {
 
 def page_js():
     import json
-    names = {group: tags(cards[0]) for table in (MODELS, CLASSIFIERS) for group, cards in groups(table).items()}
-    return PAGE_JS.replace("__TAGS__", json.dumps(names))
+    families = [(group, cards[0]) for table in (MODELS, CLASSIFIERS) for group, cards in groups(table).items()]
+    names = {group: tags(card) for group, card in families}
+    links = {group: model_db_url(card) for group, card in families if model_db_url(card)}
+    return PAGE_JS.replace("__TAGS__", json.dumps(names)).replace("__LINKS__", json.dumps(links))
 
 
 def _data_uri(filename, mime):
@@ -163,13 +187,11 @@ def header_html():
   <div class="zoo-brand">
     <a href="https://insectai.eu/" target="_blank"><img src="%s" alt="InsectAI" class="zoo-header-icon"></a>
     <span class="zoo-title"><span class="zoo-green">InsectAI</span> Model Zoo</span>
-    <span class="zoo-db-links"><a href="{model_db}" target="_blank">Model database</a> &middot;
-      <a href="{bench_db}" target="_blank">Benchmark database</a></span>
   </div>
   <button id="zoo-theme-btn" class="zoo-theme-btn" title="Dark / light" aria-label="Switch between dark and light">
     %s%s
   </button>
-</div>""".format(model_db=MODEL_DB, bench_db=BENCHMARK_DB) % (icon, MOON_ICON, SUN_ICON)
+</div>""" % (icon, MOON_ICON, SUN_ICON)
 
 
 def footer_html():
@@ -232,22 +254,6 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             return gr.update(value=SPECIES_TABLE_SURE, info="Lower = more specific (species), higher = surer "
                                                             "(genus, family, order)", **kw)
         return gr.update(value=0.0, info="Names below this show as 'Unsure'", **kw)
-
-    def db_links(det_group, cls_group):
-        """The selected models' pages in the InsectAI model database, and their datasets in the benchmark database."""
-        pages = {}
-        for card in (None if det_group == NONE else group_default(det_group, MODELS), cls_of(cls_group)):
-            if card is not None and model_db_url(card):
-                pages.setdefault(model_db_url(card), []).append(group_of(card))
-        datasets = [link for g in (det_group,) if g != NONE for link in dataset_links(group_default(g, MODELS))]
-        text = ""
-        if pages:
-            text = "📖 [Model database](%s): " % MODEL_DB + " · ".join(
-                "[%s](%s)" % (" / ".join(names), url) for url, names in pages.items())
-        if datasets:
-            text += "  ·  📊 [Benchmark database](%s): " % BENCHMARK_DB + " · ".join(
-                "[%s](%s)" % link for link in datasets)
-        return gr.update(value=text, visible=bool(text))
 
     def sizes(group, table, card):
         return gr.update(choices=version_choices(group, table), value=card.name, visible=len(groups(table)[group]) > 1)
@@ -415,7 +421,6 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
                                     value=first_slider["value"], info=first_slider["info"], visible=bool(first_cls))
         gated_md = gr.Markdown(visible=False)
-        db_md = gr.Markdown(visible=False, elem_classes="db-links")
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
         classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1,
@@ -436,8 +441,6 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         demo.load(lambda d, c: gated_note(None if d == NONE else group_default(d, MODELS), cls_of(c)),
                   [det_family, cls_family], gated_md)
         demo.load(hardware_notes)
-        for event in (det_family.change, cls_family.change, demo.load):
-            event(db_links, [det_family, cls_family], db_md)
     return demo
 
 

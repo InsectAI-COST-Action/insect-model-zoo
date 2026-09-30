@@ -12,10 +12,11 @@ pi-heif>=0.18                    # read iPhone HEIC photos
 requests>=2.31
 tqdm>=4.66
 psutil>=5.9                      # hardware check (RAM)
-huggingface_hub>=0.30            # finds a saved Hugging Face login (gated models)
+huggingface_hub>=0.34            # `hf auth login` + finds the saved login (gated models)
 # SAM 3 (text-prompted model): its text tokenizer + backbone layers
 timm>=1.0
 clip @ git+https://github.com/ultralytics/CLIP.git
+transformers>=5.0                # Grounding DINO (text-prompted detector); 5.x fits huggingface_hub 1.x
 # classifiers: BioCLIP (open_clip) and the insectDCT classifier (upstream code uses pandas + scipy)
 open_clip_torch>=3.0
 pandas>=2.0

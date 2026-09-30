@@ -25,9 +25,11 @@ CLASSES = None                           # names for zero-shot classifiers (bioc
                                          # or a .txt file with one name per line; None = every species it knows
 BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = picks from every insect species it
                                          # knows (~250,000); False = the whole tree of life (~800,000: plants, birds...)
-INPUT_IMAGE = "images/test_image.jpg"    # one image ...
+INPUT_IMAGE = "images/test_4_domains.jpg"  # one image (a light trap, lab, field + camera-trap mosaic) ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
+WEIGHTS_DIR = None                       # where model weights are kept; None = weights/ next to this file. Another
+                                         # drive with more room: e.g. "D:/insect-zoo-weights" (or --weights_dir)
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
 CAMTRAPDP = False                        # True = also write a Camtrap DP data package (the camera-trap data standard,
                                          # e.g. for GBIF) to OUTPUT_DIR/.../camtrap-dp/, same as --camtrapdp
@@ -45,8 +47,9 @@ CAMTRAPDP_INFO = dict(                   # what Camtrap DP needs to know; check 
     media_license=None,                  #   licence of the photos, if you share them
 )
 
-# Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
-# How to get one (5 min): docs/GATED_MODELS.md.  Keep it private: never share or push main.py with your token in it.
+# Hugging Face token, only needed for GATED models (sam3); how to get one (5 min): docs/GATED_MODELS.md. Best: run
+# `hf auth login` once, or put the token in hf_token.txt next to this file (git never uploads that file). Pasting it
+# here also works, but git would upload it with main.py, so the zoo warns you.
 HF_TOKEN = ""
 # -------------------------------------------------------------------------------------------------------------------
 
@@ -57,8 +60,13 @@ from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.environ.setdefault("YOLO_AUTOINSTALL", "false")      # never let Ultralytics pip-install packages while running
+if WEIGHTS_DIR:                                            # read by zoo/weights.py (as INSECT_ZOO_WEIGHTS)
+    os.environ["INSECT_ZOO_WEIGHTS"] = os.path.abspath(WEIGHTS_DIR)
 if HF_TOKEN.strip():
     os.environ["HF_TOKEN"] = HF_TOKEN.strip()              # read by zoo/weights.py when downloading gated models
+    print("NOTE: your Hugging Face token is written in main.py, which git uploads with the code (also in forks). "
+          "Move it: run `hf auth login` (or put it in hf_token.txt, which git ignores), then set HF_TOKEN = \"\" "
+          "again. See docs/GATED_MODELS.md.")
 
 if sys.version_info < (3, 11):
     sys.exit("Python 3.11 or newer is needed (you have %s). See README 'Prerequisites'." % sys.version.split()[0])
@@ -117,6 +125,7 @@ def build_parser():
     p.add_argument("--latitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
     p.add_argument("--longitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
     p.add_argument("--deployment_id", help="Camtrap DP: camera / site name (default: the images folder's name)")
+    p.add_argument("--weights_dir", help="where model weights are kept (default: WEIGHTS_DIR in main.py, else weights/)")
     p.add_argument("--port", type=int, help="port for the web UI (default: first free port from 7860)")
     return p
 
@@ -157,6 +166,10 @@ def load_or_explain(zoo, card, classifier=False):
         return zoo.load_classifier(card) if classifier else zoo.load(card)
     except GatedModelError as e:
         sys.exit("\n" + str(e) + "\n")
+    except RuntimeError as e:                      # weights folder missing, disk full, download failed: say so
+        if any(k in str(e) for k in ("weights folder", "disk space", "Could not download")):
+            sys.exit("\n" + str(e) + "\n")
+        raise
 
 
 def run_cli(args, card, classifier):
@@ -263,6 +276,9 @@ def write_camtrapdp(args, out_dir, entries, card, classifier):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     args = build_parser().parse_args(argv)
+    if args.weights_dir:
+        from zoo import weights
+        weights.WEIGHTS_DIR = os.path.abspath(args.weights_dir)
 
     if args.list_models:
         print(models_table())

@@ -5,8 +5,9 @@ Weights are NOT stored in this repository. The first time a model is used, its w
 original authors' source (the URL in zoo/registry.py) into weights/<model-name>/, the SHA-256 checksum is verified,
 and every later run uses that local copy (works offline). Delete the folder to force a new download.
 
-Gated models (e.g. SAM3) are downloaded from Hugging Face with your token (HF_TOKEN in main.py, the HF_TOKEN
-environment variable, or a saved `hf auth login`). See docs/GATED_MODELS.md.
+Gated models (e.g. SAM3) are downloaded from Hugging Face with your token: the HF_TOKEN environment variable (also
+set by HF_TOKEN in main.py), the file hf_token.txt next to main.py (git-ignored), or a saved `hf auth login`.
+See docs/GATED_MODELS.md.
 """
 
 import hashlib
@@ -24,11 +25,21 @@ class GatedModelError(RuntimeError):
     """Access to a gated model is missing; the message says exactly what to do."""
 
 
+TOKEN_FILE = os.path.join(HERE, "hf_token.txt")          # git-ignored, so a token there is never uploaded
+
+
 def hf_token():
-    """HF_TOKEN from main.py / the environment, else the token saved by `hf auth login` (if any)."""
+    """HF_TOKEN from the environment (or main.py), else hf_token.txt, else the token saved by `hf auth login`."""
     token = os.environ.get("HF_TOKEN", "").strip()
     if token:
         return token
+    try:
+        with open(TOKEN_FILE, encoding="utf-8") as f:
+            token = f.read().strip()
+        if token:
+            return token
+    except OSError:
+        pass
     try:
         from huggingface_hub import get_token
         return (get_token() or "").strip()
@@ -45,7 +56,7 @@ def gated_help(card, problem):
         "  1. Request access (log in first):  %s" % card.gated,
         "  2. Create a fine-grained token:     https://huggingface.co/settings/tokens",
         "     tick 'Read access to contents of all public gated repos you can access'",
-        '  3. Paste it at the top of main.py:  HF_TOKEN = "hf_..."',
+        "  3. Save it: run  hf auth login  and paste it (or put it in hf_token.txt next to main.py)",
         "  4. Run the same command again.",
         "Step-by-step guide: %s" % GATED_GUIDE_URL])
 
@@ -95,11 +106,40 @@ def ensure_weights(card, progress=None):
 
     progress(done_bytes, total_bytes, message) is called while downloading (the UI passes its own; the CLI gets a
     tqdm bar)."""
+    _check_folder_and_space(card)
     path = _ensure_file(card, card.weights, progress)
     for wf in card.species_table:                   # BioCLIP: every taxon it knows (used when you give no names)
         _ensure_file(card, wf, progress)
     _ensure_extra_files(card)
     return path
+
+
+def _check_folder_and_space(card):
+    """Before downloading anything: the weights folder can be used, and has room for everything this model still
+    needs (weights + species table), not just the next file."""
+    missing = sum(wf.size for wf in (card.weights,) + tuple(card.species_table) if not _have(card, wf))
+    if not missing:
+        return
+    folder = os.path.join(WEIGHTS_DIR, card.name)
+    try:
+        os.makedirs(folder, exist_ok=True)
+        free = shutil.disk_usage(folder).free
+    except OSError as e:
+        raise RuntimeError("The weights folder %s cannot be used (%s). If it is on a drive that is not plugged in, "
+                           "plug it in; or choose another folder: WEIGHTS_DIR at the top of main.py, --weights_dir, "
+                           "or the INSECT_ZOO_WEIGHTS environment variable." % (WEIGHTS_DIR, e))
+    if free < missing + 200 * MB:
+        raise RuntimeError("Not enough free disk space for %s: %s needed, %s free in %s. Free up space, or keep the "
+                           "weights on another drive: WEIGHTS_DIR at the top of main.py or --weights_dir."
+                           % (card.name, size_text(missing), size_text(free), WEIGHTS_DIR))
+
+
+def weights_status(card):
+    """'downloaded' or 'not downloaded (size)', for --check."""
+    if is_downloaded(card):
+        return "downloaded"
+    missing = sum(wf.size for wf in (card.weights,) + tuple(card.species_table) if not _have(card, wf))
+    return "not downloaded (%s)" % size_text(missing)
 
 
 def _ensure_extra_files(card):

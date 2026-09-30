@@ -7,3 +7,6 @@ output/
 *.part
 .gradio/
 .DS_Store
+# private: your Hugging Face token (see docs/GATED_MODELS.md) - never uploaded
+hf_token.txt
+.env

@@ -48,9 +48,12 @@ def coco(entries, detector, classifier=""):
             x, y, w, h = d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1
             ann = {"id": len(annotations) + 1, "image_id": image_id, "category_id": ids[category(d)],
                    "bbox": [round(x, 2), round(y, 2), round(w, 2), round(h, 2)], "area": round(w * h, 2),
-                   "iscrowd": 0, "score": round(d.confidence, 4), "label": d.label, "taxon": d.taxon,
+                   "iscrowd": 0, "score": None if d.confidence is None else round(d.confidence, 4),
+                   "label": d.label, "taxon": d.taxon,
                    "taxon_score": None if d.taxon_score is None else round(d.taxon_score, 4),
                    "taxon_rank": d.taxon_rank}
+            if d.angle is not None:
+                ann["angle"] = round(d.angle, 2)                      # oriented box: segmentation = its 4 corners
             if d.polygon is not None and len(d.polygon) > 2:
                 ann["segmentation"] = [[round(float(v), 1) for point in d.polygon for v in point]]
                 ann["area"] = round(_polygon_area(d.polygon), 2)
@@ -137,6 +140,9 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
         kept = 0
         for d in e.detections:
             name, rank, comment, probability = _scientific(d, name_map)
+            if d.angle is not None:
+                comment = (comment + "; " if comment else "") + \
+                    "oriented box turned %.1f deg; bbox is its upright hull" % d.angle
             if name is False:                                        # the classifier says: not an animal
                 left_out += 1
                 continue
@@ -164,7 +170,7 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     times = sorted((s for s, _ in stamps), key=datetime.fromisoformat)    # by instant, not by text
     deployments = [{"deploymentID": deployment, "locationName": deployment, "latitude": lat, "longitude": lon,
                     "deploymentStart": times[0], "deploymentEnd": times[-1],
-                    "timestampIssues": True if from_file else None,
+                    "timestampIssues": True if from_file or (assumed and not info.get("timezone")) else None,
                     "deploymentComments": "Start / end are the first / last photo (the camera may have run longer)."}]
     _write_table(os.path.join(folder, "deployments.csv"), "deployments", deployments)
     _write_table(os.path.join(folder, "media.csv"), "media", media)
@@ -261,7 +267,7 @@ def _scientific(d, name_map):
     comment = "classifier unsure" if d.taxon == "Unsure" else ""
     if not name and d.label:
         comment = (comment + "; " if comment else "") + "detector label: " + d.label
-    return name, rank, comment, d.confidence
+    return name, rank, comment, d.confidence if name else None      # no name: no classification score
 
 
 def _clip(v, low=0.0):

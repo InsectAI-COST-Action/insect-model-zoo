@@ -48,7 +48,7 @@ It works in two steps, and you can combine any two models:
 
 | Step | What it does | Models |
 |---|---|---|
-| **Detector** | finds the insects (box, sometimes an outline) | insectDCT v8, flat-bug, SAM 3 |
+| **Detector** | finds the insects (box, sometimes an outline or a turned box) | insectDCT v8, flat-bug, ArthroNat, Mothbot, Grounding DINO, SAM 3 |
 | **Classifier** *(optional)* | says what each insect is (species / family / order + score) | insectDCT classifier V7, BioCLIP 2.5, BioCLIP 2 |
 
 The zoo builds on the InsectAI COST Action's two shared databases: the [**model database**](https://insectai-cost-action.github.io/model-db/) (the models for
@@ -169,12 +169,20 @@ cd insect-model-zoo
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
+python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # Linux WITHOUT an NVIDIA GPU only: saves several GB
 python -m pip install -r requirements.txt
 python main.py --check
 ```
 
 GPU: on **Linux** the normal install already includes NVIDIA GPU support (with an older driver, do the same swap as
 above with `cu126`); on a **Mac** with Apple Silicon the GPU is used automatically.
+
+### Weights on another drive
+
+The model weights go to `weights/` in the zoo folder (BioCLIP 2.5 alone is 6.8 GB). To keep them on a drive with more
+room, e.g. an external SSD, set `WEIGHTS_DIR = "D:/insect-zoo-weights"` at the top of `main.py` (or use
+`--weights_dir`, or the environment variable `INSECT_ZOO_WEIGHTS`). `python main.py --check` shows the folder, its free
+space, and which models are already downloaded.
 
 ### Every time you open a new terminal
 
@@ -193,8 +201,10 @@ python main.py
 ```
 
 A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a **Detector** and a **Classifier**
-dropdown, two **confidence** sliders and **Detect**. A sample image is preloaded, so you can press Detect straight
-away; click it or drag your own photo onto it to analyse yours.
+dropdown, two **confidence** sliders and **Detect**. A sample image is preloaded (four ways insects are
+photographed: a light trap, a lab, a citizen-science photo and a camera trap; credits in
+[images/CREDITS.md](images/CREDITS.md)), so you can press Detect straight away; click it or drag your own photo onto
+it to analyse yours.
 
 - **Detection confidence**: boxes the detector is less sure about are dropped. **Classification confidence**: for
   BioCLIP without names, how sure the answer must be (default 0.5): lower gives more specific names (species), higher
@@ -224,11 +234,13 @@ Any argument switches to command-line mode:
 ```bash
 python main.py --list_models                                  # which detectors and classifiers are there
 python main.py -i images/test_image.jpg                       # default detector + its classifier, one image
+python main.py -m mothbot-mbd-1-1 -c none                     # oriented boxes, on the 4-domain test image
 python main.py -m flatbug-m -f path/to/my_images              # every image in a folder
 python main.py -m flatbug-m -c insectdct-cls-v7               # flat-bug finds, insectDCT's classifier names
 python main.py -m flatbug-m -c bioclip-2.5 --classes "Apis mellifera, Bombus terrestris, Eristalis tenax"
 python main.py -m insectdct-v8-s -c none -t 0.25 -d cpu       # detection only, own threshold, force CPU
 python main.py -m sam3 -p "bee, butterfly" -c bioclip-2.5     # text prompt (sam3 is gated, see below)
+python main.py -m grounding-dino-base -p "bee, moth, fly" -c none   # text prompt, boxes only, not gated
 python main.py -f my_camera_1 --camtrapdp --latitude 56.16 --longitude 10.20   # + a Camtrap DP data package
 python main.py --download all                                 # fetch all weights now (e.g. before going offline)
 python main.py --help                                         # all options + the model list
@@ -243,9 +255,10 @@ python main.py --help                                         # all options + th
 | `--iou` | | overlap (0–1) above which two boxes are merged as the same insect | the model's own value |
 | `--prompt` | `-p` | what to look for, for text-prompt detectors (`sam3`): `"bee"` or `"bee, butterfly"` | `insect` |
 | `--classes` | | Latin names for zero-shot classifiers (`bioclip-*`): `"Apis mellifera, Bombus terrestris"` or a `.txt` file with one name per line | every insect species BioCLIP knows |
-| `--input_image` | `-i` | one image | `images/test_image.jpg` |
+| `--input_image` | `-i` | one image | `images/test_4_domains.jpg` |
 | `--input_folder` | `-f` | all images in a folder (`.jpg .png .tif .bmp .webp .heic`) | – |
 | `--output_dir` | `-o` | where results go (a sub-folder per detector + classifier) | `output` |
+| `--weights_dir` | | where model weights are kept, e.g. on another drive | `weights/` |
 | `--device` | `-d` | `auto`, `cpu`, `cuda`, `cuda:1`, `mps` | `auto` |
 | `--camtrapdp` | | also write a [Camtrap DP](#camtrap-dp) data package (also `--camtrapDP`) | off |
 | `--latitude`, `--longitude` | | Camtrap DP: where the camera was, decimal degrees (WGS84) | the photos' GPS |
@@ -274,9 +287,11 @@ CLASSES = None                           # names for zero-shot classifiers (bioc
                                          # or a .txt file with one name per line; None = every species it knows
 BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = picks from every insect species it
                                          # knows (~250,000); False = the whole tree of life (~800,000: plants, birds...)
-INPUT_IMAGE = "images/test_image.jpg"    # one image ...
+INPUT_IMAGE = "images/test_4_domains.jpg"  # one image (a light trap, lab, field + camera-trap mosaic) ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
+WEIGHTS_DIR = None                       # where model weights are kept; None = weights/ next to this file. Another
+                                         # drive with more room: e.g. "D:/insect-zoo-weights" (or --weights_dir)
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
 CAMTRAPDP = False                        # True = also write a Camtrap DP data package (the camera-trap data standard,
                                          # e.g. for GBIF) to OUTPUT_DIR/.../camtrap-dp/, same as --camtrapdp
@@ -294,7 +309,9 @@ CAMTRAPDP_INFO = dict(                   # what Camtrap DP needs to know; check 
     media_license=None,                  #   licence of the photos, if you share them
 )
 
-# Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
+# Hugging Face token, only needed for GATED models (sam3); how to get one (5 min): docs/GATED_MODELS.md. Best: run
+# `hf auth login` once, or put the token in hf_token.txt next to this file (git never uploads that file). Pasting it
+# here also works, but git would upload it with main.py, so the zoo warns you.
 HF_TOKEN = ""
 ```
 
@@ -305,8 +322,9 @@ For each image, in `output/<detector>+<classifier>/` (just `output/<detector>/` 
 - `<image>_annotated.jpg`: boxes (and outlines for segmentation models) labelled with the taxon and its score, or
   with the detector's label and confidence when there is no classifier
 - `<image>_detections.csv`: one row per detection (pixels, top-left origin):
-  `image, model, x1, y1, x2, y2, confidence, label, classifier, taxon, taxon_score, taxon_rank`.
+  `image, model, x1, y1, x2, y2, confidence, label, classifier, taxon, taxon_score, taxon_rank, angle`.
   `taxon` is `Unsure` when the insectDCT classifier is not sure at any level.
+  `angle` is only filled for oriented boxes (Mothbot): degrees counter-clockwise.
 - `<image>_coco.json`: the same in [COCO](https://cocodataset.org/#format-data) format, e.g. to train or fine-tune
   a model on (as pre-labels to check): `bbox` = `[x, y, width, height]` in pixels, the outline of each insect as a
   `segmentation` polygon (segmentation models), and the category = the taxon (or the detector's label when there is
@@ -366,6 +384,14 @@ A draft of a shared *golden* JSON format (from the team's whiteboard; not produc
 | `flatbug-m` | `detector` `segmentation` | YOLOv8m-seg, 1024 px tiles | 47 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
 | `flatbug-l` | `detector` `segmentation` | YOLOv8l-seg, 1024 px tiles | 80 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
 | `flatbug-m-v2` | `detector` `segmentation` | YOLO26m-seg, 1024 px tiles | 52 MB | 0.2 | MIT | [MEE](https://doi.org/10.1111/2041-210x.70249) | [flat-bug](https://github.com/darsa-group/flat-bug) |
+| `arthronat-l` | `detector` | YOLO11l, 640 px | 49 MB | 0.5 | AGPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.05.06.723207) | [ArthroNat](https://github.com/edgaremy/arthropod-detection-dataset) |
+| `arthronat-n` | `detector` | YOLO11n, 640 px | 5 MB | 0.5 | AGPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.05.06.723207) | [ArthroNat](https://github.com/edgaremy/arthropod-detection-dataset) |
+| `arthronat-l-mosaic` | `detector` | YOLO11l, 640 px | 49 MB | 0.5 | AGPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.05.06.723207) | [ArthroNat](https://github.com/edgaremy/arthropod-detection-dataset) |
+| `arthronat-n-mosaic` | `detector` | YOLO11n, 640 px | 5 MB | 0.5 | AGPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.05.06.723207) | [ArthroNat](https://github.com/edgaremy/arthropod-detection-dataset) |
+| `mothbot-mbd-1-1` | `detector` `oriented box` (+ BioCLIP 2 by default) | YOLO26s-OBB, 1600 px | 21 MB | 0.25 | AGPL-3.0 ([see below](#mothbot)) | [Mothbox, bioRxiv](https://doi.org/10.64898/2025.12.03.692171) | [Mothbot](https://github.com/Digital-Naturalism-Laboratories/Mothbot_Process) |
+| `mothbot-mbd-1-0` | `detector` `oriented box` (+ BioCLIP 2 by default) | YOLO26s-OBB, 1600 px | 21 MB | 0.25 | AGPL-3.0 ([see below](#mothbot)) | [Mothbox, bioRxiv](https://doi.org/10.64898/2025.12.03.692171) | [Mothbot](https://github.com/Digital-Naturalism-Laboratories/Mothbot_Process) |
+| `grounding-dino-base` | `detector` `text prompt` | Grounding DINO, Swin-B | 890 MB | 0.3 | Apache-2.0 | [ECCV / arXiv](https://doi.org/10.48550/arXiv.2303.05499) | [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO) |
+| `grounding-dino-tiny` | `detector` `text prompt` | Grounding DINO, Swin-T | 657 MB | 0.3 | Apache-2.0 | [ECCV / arXiv](https://doi.org/10.48550/arXiv.2303.05499) | [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO) |
 | `sam3` 🔒 **([Gated](docs/GATED_MODELS.md))** | `detector` `segmentation` `text prompt` `gated` | SAM 3, 848M params, 1008 px | 3.2 GB | 0.5 | SAM License | [arXiv](https://doi.org/10.48550/arXiv.2511.16719) | [sam3](https://github.com/facebookresearch/sam3) |
 
 *Threshold* is the default confidence, i.e. the value the authors recommend. Smaller models (s, n) are faster and
@@ -419,12 +445,65 @@ the default since flat-bug 1.2.
   the `flat-bug` package uses. The inference code is the official [`flat-bug`](https://pypi.org/project/flat-bug/)
   package from PyPI.
 
+### ArthroNat
+
+YOLO11 detector for arthropods in close-up field photos on **natural backgrounds** (vegetation, soil, flowers), by
+Remy et al. (IRIT / SETE-CNRS, Toulouse). One class (labelled *insect* here). It is trained on ArthroNat: about 13,600
+research-grade iNaturalist photos of French terrestrial arthropods (979 species in 67 orders), in two mixes:
+ArthroNat plus the flat-bug dataset (`arthronat-l`, `arthronat-n`, the paper's recommended setup), and ArthroNat alone
+with a 3 x 3 mosaic augmentation (`-mosaic`). L is the more accurate one, N is ten times smaller and faster. Default
+confidence 0.5, the value the paper evaluates at.
+
+- **Model database:** [arthronat](https://insectai-cost-action.github.io/model-db/models/arthronat/)
+- **Paper:** Remy, E., Carlier, A., Massol, E., Kacimi, R., Chaine, A.S. & Cauchoix, M. (2026). *Towards a general
+  Detector of terrestrial Arthropods in Natural backgrounds*. bioRxiv. DOI
+  [10.64898/2026.05.06.723207](https://doi.org/10.64898/2026.05.06.723207)
+- **Code and dataset:** [github.com/edgaremy/arthropod-detection-dataset](https://github.com/edgaremy/arthropod-detection-dataset)
+  (MIT) · **Weights:** [huggingface.co/edgaremy/arthropod-detector](https://huggingface.co/edgaremy/arthropod-detector),
+  pinned to a commit · **License:** AGPL-3.0 (the current model card; earlier versions said MIT)
+
+### Mothbot
+
+Mothbot Detect (MBD), by Digital Naturalism Laboratories: the detection step of Mothbot, the software of the
+open-hardware Mothbox light trap. It finds every insect (and spider) on the lit sheet of a light trap and gives each an
+**oriented box**, turned to fit its body. The zoo keeps its 4 corners (the outline in the COCO output), its upright
+hull (`x1, y1, x2, y2` in the CSV and in Camtrap DP) and its angle (`angle` column: the long side against the image's
+x-axis, in degrees counter-clockwise). One class (labelled *insect* here; upstream says *creature*). It runs at 1600 px, handles
+thousands of insects per photo, and by default hands them to BioCLIP 2, as Mothbot itself does. MBD-1-1 is the newest
+model, MBD-1-0 the previous one; both are YOLO26s-OBB (21 MB).
+
+- **Model database:** [mothbot](https://insectai-cost-action.github.io/model-db/models/mothbot/)
+- **Paper:** none for Mothbot Detect itself. The Mothbox: Szczygieł, Dent & Quitmeyer (2025). *Mothbox: inexpensive,
+  lightweight, automated light trap for scalable insect biodiversity monitoring*. bioRxiv. DOI
+  [10.64898/2025.12.03.692171](https://doi.org/10.64898/2025.12.03.692171)
+- **Code:** [github.com/Digital-Naturalism-Laboratories/Mothbot_Process](https://github.com/Digital-Naturalism-Laboratories/Mothbot_Process)
+  · **Weights:** `trained_models/MBD-1-{1,0}.pt` from that repository, pinned to a commit
+- **License:** the repository has **no licence file**. The model database lists AGPL-3.0, the licence of Ultralytics,
+  which trained it. The zoo only downloads the weights from the authors; ask them before redistributing them.
+
+### Grounding DINO
+
+Open-vocabulary detector from IDEA Research: **type what to look for** (e.g. `insect`, or `bee, moth, fly`) and it
+boxes every match, each box labelled with the word it matched best. Like SAM 3 it takes a text prompt, but it gives
+boxes only (no outlines), is much smaller (Tiny 657 MB, Base 890 MB) and is **not gated**. It is not trained on
+insects specifically: a general word such as `insect` usually finds more than specific names, and it can mix up
+look-alikes (e.g. call a fly a moth). The zoo scores each word on its own (the mean of its tokens' scores) and merges
+overlapping boxes, since the model does no NMS itself. Default confidence 0.3.
+
+- **Model database:** [grounding-dino](https://insectai-cost-action.github.io/model-db/models/grounding-dino/)
+- **Paper:** Liu, S., Zeng, Z., Ren, T., et al. (2024). *Grounding DINO: Marrying DINO with Grounded Pre-Training for
+  Open-Set Object Detection*. ECCV 2024. DOI [10.48550/arXiv.2303.05499](https://doi.org/10.48550/arXiv.2303.05499)
+- **Code:** [github.com/IDEA-Research/GroundingDINO](https://github.com/IDEA-Research/GroundingDINO); run here with
+  Hugging Face `transformers` · **Weights:** [IDEA-Research/grounding-dino-base](https://huggingface.co/IDEA-Research/grounding-dino-base)
+  and [-tiny](https://huggingface.co/IDEA-Research/grounding-dino-tiny) on Hugging Face (open, pinned to a commit)
+  · **License:** Apache-2.0
+
 ### SAM 3 (gated)
 
 Meta's *Segment Anything Model 3* finds and outlines **whatever you describe in words**: `bee`, `butterfly`,
 `ladybird`, or several at once (`bee, butterfly, beetle`), each result labelled with its word. It is a general
 foundation model, not trained on insects specifically, so it is great for exploring and for classes no other model
-covers. Large (3.2 GB): a GPU with 6 GB+ gives a few seconds per image; on CPU it works, at about 40 s per image.
+covers. Large (3.2 GB): a GPU with 6 GB+ gives a few seconds per image; on CPU it works, at 40-80 s per image.
 
 - **Model database:** [sam3](https://insectai-cost-action.github.io/model-db/models/sam3/)
 - **Access:** 🔒 gated on Hugging Face. Request access and add your token once: **[step-by-step guide](docs/GATED_MODELS.md)**
@@ -454,7 +533,9 @@ Biology foundation models from Imageomics, trained on the TreeOfLife-200M images
 data: BioCLIP compares each insect with a text for every name and picks the best match. BioCLIP 2.5 Huge is the
 strongest; BioCLIP 2 is half the size.
 
-**Without your own names** (the default), BioCLIP picks from **every insect species it knows**:
+**Without your own names** (the default), BioCLIP picks from **every insect species it knows** (BioCLIP 2 is less
+sure than 2.5 on small crops, so it answers at a broader rank more often: e.g. *Hymenoptera* for the test bee, where
+2.5 says *Apis mellifera*; a lower classification confidence, e.g. `--cls_threshold 0`, shows its species guess):
 
 | | BioCLIP 2.5 | BioCLIP 2 |
 |---|---|---|
@@ -613,7 +694,8 @@ zoo/engine.py           load the detector + classifier and run them (GPU -> CPU 
 zoo/results.py          drawing and CSV / COCO JSON output per image
 zoo/export.py           COCO JSON and Camtrap DP data package
 zoo/ui.py               the web UI (Gradio)
-images/test_image.jpg   a test image (a honey bee from our own camera)
+images/                test images: test_4_domains.jpg (light trap, lab, citizen science, camera trap; credits
+                        in images/CREDITS.md) and test_image.jpg (a honey bee from our own camera)
 assets/                 InsectAI and COST logos for the UI
 .github/workflows/      automatic tests on Windows, Linux and macOS
 ```

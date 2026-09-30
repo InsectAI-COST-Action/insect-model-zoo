@@ -135,6 +135,13 @@ body.dark,
   --pill-border: #fda4af;
 }
 
+/* orange: detectors with boxes turned to fit each insect (e.g. Mothbot) */
+.zoo-pill.oriented-box {
+  --pill-text: #c2410c;
+  --pill-bg: #ffedd5;
+  --pill-border: #fdba74;
+}
+
 /* the "InsectAI" in the top bar title: the same green as the icon next to it. !important: Gradio's
    .prose * rule would otherwise force every element in the header back to the body text colour */
 .zoo-green {

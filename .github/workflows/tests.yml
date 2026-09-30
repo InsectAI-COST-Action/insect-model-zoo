@@ -55,9 +55,11 @@ jobs:
 
       - name: Run each detector family on CPU, and detector + classifier
         run: |
-          python main.py -m insectdct-v8-s -c none -d cpu -o ci_out
+          python main.py -m insectdct-v8-s -c none -d cpu -i images/test_image.jpg -o ci_out
           python main.py -m flatbug-n -d cpu -f images -o ci_out
-          python main.py -m insectdct-v8-s -d cpu -o ci_out --camtrapdp --latitude 56.16 --longitude 10.20
+          python main.py -m insectdct-v8-s -d cpu -i images/test_image.jpg -o ci_out --camtrapdp --latitude 56.16 --longitude 10.20
+          python main.py -m arthronat-n -c none -d cpu -i images/test_4_domains.jpg -o ci_out
+          python main.py -m mothbot-mbd-1-1 -c none -d cpu -i images/test_4_domains.jpg -o ci_out
           python - <<'EOF'
           import csv, json, os
           for folder in ["insectdct-v8-s", "flatbug-n", "insectdct-v8-s+insectdct-cls-v7"]:
@@ -74,6 +76,12 @@ jobs:
           report = validate(os.path.join("ci_out", "insectdct-v8-s+insectdct-cls-v7", "camtrap-dp", "datapackage.json"))
           assert report.valid, report.flatten(["type", "message"])
           print("Camtrap DP package valid")
+          for folder in ["arthronat-n", "mothbot-mbd-1-1"]:
+              with open(os.path.join("ci_out", folder, "test_4_domains_detections.csv")) as f:
+                  rows = list(csv.DictReader(f))
+              assert len(rows) >= 3, (folder, len(rows))
+              print(folder, len(rows), "detections on the 4-domain image")
+          assert all(r["angle"] != "" for r in rows), "Mothbot: oriented boxes without an angle"
           with open(os.path.join("ci_out", "insectdct-v8-s+insectdct-cls-v7", "test_image_detections.csv")) as f:
               taxa = [r["taxon"] for r in csv.DictReader(f)]
           assert "Apis mellifera" in taxa, taxa           # the test image is a honey bee

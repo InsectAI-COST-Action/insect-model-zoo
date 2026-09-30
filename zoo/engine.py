@@ -102,9 +102,12 @@ class Zoo:
         t = time.time()
         dets = self._on_cpu_if_gpu_fails(self.detector, lambda m: m.predict(image_rgb, threshold, iou, prompt))
         h, w = image_rgb.shape[:2]
-        for d in dets:                                              # keep boxes inside the image
+        for d in dets:                                              # keep boxes (and outlines) inside the image
             d.x1, d.x2 = (min(max(v, 0), w - 1) for v in (d.x1, d.x2))
             d.y1, d.y2 = (min(max(v, 0), h - 1) for v in (d.y1, d.y2))
+            if d.polygon is not None:
+                d.polygon = [[min(max(float(x), 0.0), w - 1.0), min(max(float(y), 0.0), h - 1.0)]
+                             for x, y in d.polygon]
         return dets, time.time() - t
 
     def classify(self, image_rgb, dets, classes=None):
@@ -128,7 +131,7 @@ class Zoo:
         """No detector: treat the whole image as one box and just classify it."""
         image = results.load_image(path)
         h, w = image.shape[:2]
-        dets = [results.Detection(0.0, 0.0, float(w - 1), float(h - 1), 1.0, "")]
+        dets = [results.Detection(0.0, 0.0, float(w - 1), float(h - 1), None, "")]   # no detector: no score
         secs = self.classify(image, dets, classes)
         _apply_taxon_threshold(dets, cls_threshold)
         name = self.classifier.card.name if self.classifier.card else ""
