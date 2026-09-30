@@ -474,7 +474,7 @@ main.contain > .column {
    side panels - vertical tabs, devtools - take width away, not height */
 .zoo-image {
   height: clamp(200px, calc(38vh - 62px), 440px) !important;
-  padding: 8px !important; /* a thin frame around the image, not a card-wide one */
+  padding: 2px !important; /* almost none: the image nearly touches the tile's border */
   border-style: solid !important; /* Gradio dashes the image blocks: the tiles are plain cards */
   border-radius: 6px !important; /* the viewers keep a small radius: only the other cards round over */
 }
@@ -499,15 +499,15 @@ main.contain > .column {
 
 .zoo-info {
   position: relative;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font: italic 600 .8rem/1 Georgia, "Times New Roman", serif;
+  font: italic 700 .95rem/1 Georgia, "Times New Roman", serif;
   color: var(--zoo-text-dim) !important;
-  border: 1.5px solid var(--zoo-list-border);
+  border: 1.5px solid var(--zoo-border);
   background: var(--block-background-fill);
   text-decoration: none !important;
   cursor: pointer;
@@ -531,7 +531,7 @@ main.contain > .column {
   font: 400 .78rem/1.35 var(--font, sans-serif);
   color: var(--body-text-color);
   background: var(--block-background-fill);
-  border: 1px solid var(--zoo-list-border);
+  border: 1px solid var(--zoo-border);
   box-shadow: var(--zoo-list-shadow);
   opacity: 0;
   pointer-events: none;
