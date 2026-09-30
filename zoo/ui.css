@@ -177,14 +177,23 @@ input[role="combobox"] {
   appearance: textfield !important;
 }
 
-/* the model size buttons (the radios under the two model lists): text in the calm green, the selected
-   one marked with the page's green family, a hover like the model list's rows */
+/* the model size buttons (the radios under the two model lists): neutral buttons in the page's own
+   shade, the selected one in the page's (dull) green - and the little radio dot too, which otherwise
+   takes Gradio's bright accent green (--checkbox-* are the dot's and the button's own variables) */
+.zoo-sizes {
+  --checkbox-background-color-selected: var(--zoo-green-text);
+  --checkbox-border-color-selected: var(--zoo-green-text);
+  --checkbox-border-color: var(--zoo-border);
+}
+
 .zoo-sizes label {
-  color: var(--zoo-green-soft) !important;
+  color: var(--zoo-text-secondary) !important;
+  background: var(--zoo-list-hover) !important;
+  border-color: var(--zoo-border) !important;
 }
 
 .zoo-sizes label:hover {
-  background: var(--zoo-list-hover) !important;
+  background: var(--zoo-list-selected) !important;
 }
 
 .zoo-sizes label.selected {
@@ -316,6 +325,17 @@ body.dark .zoo-image .icon-button-wrapper button {
   font-size: 1.05rem !important;
   font-weight: 600 !important;
   color: var(--body-text-color) !important;
+}
+
+/* every other block title (the sliders' and the text fields'): plain slightly bigger text, no chip
+   background or border - the two main cards above keep their own, bigger version of this rule */
+span[data-testid="block-info"] {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-size: 1rem !important;
 }
 
 /* the run summary under the button: what used to be the result image's label */
@@ -535,6 +555,12 @@ main.contain > .column {
   padding: 2px !important; /* almost none: the image nearly touches the tile's border */
   border-style: solid !important; /* Gradio dashes the image blocks: the tiles are plain cards */
   border-radius: 6px !important; /* the viewers keep a small radius: only the other cards round over */
+}
+
+/* the tiles' row starts right under the top bar: the room would come from the column's gap between
+   blocks (--layout-gap), which no card may opt out of - so the row cancels it with its own margin */
+.row:has(> .zoo-image) {
+  margin-top: calc(0px - var(--layout-gap)) !important;
 }
 
 /* the (i) next to each model list: a small round link to the model's page in the InsectAI model database, with a
