@@ -1,0 +1,181 @@
+/* The look of the page: layout and shapes. Every colour and font size is a variable from theme.css. */
+.option-list {
+  max-height: 320px !important; /* long model lists scroll */
+}
+
+/* the open model list: one box, one row per model with a line between models */
+ul.option-list {
+  padding: 6px !important;
+  background: var(--zoo-page-bg) !important;
+  border: 1px solid var(--zoo-list-border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--zoo-list-shadow) !important;
+}
+
+ul.option-list li[role="option"] {
+  padding: 10px 12px !important;
+  border-radius: 8px;
+  position: relative;
+}
+
+/* a straight line between two models */
+ul.option-list li[role="option"] + li[role="option"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  border-top: 1px solid var(--zoo-divider);
+}
+
+ul.option-list li[role="option"]:hover,
+ul.option-list li[role="option"].active {
+  background: var(--zoo-green-bg-soft) !important;
+}
+
+ul.option-list li[role="option"].selected {
+  background: var(--zoo-green-bg) !important;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--zoo-green-bar);
+}
+
+/* no check mark: the green row shows it */
+ul.option-list li .inner-item {
+  display: none;
+}
+
+.zoo-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.zoo-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--zoo-font-pill);
+  font-weight: 600;
+  color: var(--pill-text);
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* name + pills on one line, or wrapped onto more lines when there is no room (the pills keep their shape) */
+li[role="option"]:has(> .zoo-pills),
+.secondary-wrap:has(> .zoo-pills) {
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  column-gap: 8px;
+  row-gap: 4px;
+  white-space: nowrap;
+  word-break: normal !important;
+}
+
+/* leave room for the dropdown arrow */
+.secondary-wrap:has(> .zoo-pills) {
+  padding-right: 34px;
+}
+
+/* when name + pills do not fit on one line (phone, small window, many tags): name on top, pills centred below */
+.zoo-stacked {
+  justify-content: center !important;
+}
+
+.zoo-stacked > .zoo-pills {
+  flex-basis: 100%;
+  justify-content: center;
+}
+
+.secondary-wrap.zoo-stacked {
+  padding: 4px 34px 6px;
+}
+
+/* e.g. 'none' */
+.secondary-wrap.zoo-stacked > input {
+  text-align: center;
+}
+
+/* confidence sliders: an oval (pill) track with a round green handle; the value box on the right updates live */
+.zoo-slider input[type="range"] {
+  height: 10px;
+  border-radius: 999px;
+}
+
+.zoo-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--zoo-green-handle);
+  border: 2px solid var(--zoo-page-bg);
+  box-shadow: var(--zoo-handle-shadow);
+}
+
+.zoo-slider input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--zoo-page-bg);
+  border-radius: 50%;
+  background: var(--zoo-green-handle);
+}
+
+/* the live value: a rounded green chip */
+.zoo-slider input[type="number"] {
+  font-weight: 700;
+  color: var(--zoo-green-text);
+  text-align: center;
+  border-radius: 999px !important;
+  background: var(--zoo-green-bg-soft) !important;
+  border: 1px solid var(--zoo-green-border) !important;
+}
+
+.upload-hint {
+  text-align: center;
+  margin: -2px 0 0;
+  color: var(--zoo-text-dim);
+  font-size: var(--zoo-font-hint);
+}
+
+.upload-hint strong {
+  color: var(--zoo-green-text);
+}
+
+/* the header: the InsectAI and COST logos with the title, wrapping on a narrow page */
+.zoo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.zoo-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.zoo-logo {
+  height: 56px;
+}
+
+.zoo-title {
+  font-size: var(--zoo-font-title);
+  font-weight: 600;
+}
+
+.zoo-cost {
+  background: var(--zoo-page-bg);
+  border-radius: 8px;
+  padding: 4px 10px;
+  line-height: 0;
+}
+
+.zoo-cost-logo {
+  height: 36px;
+}

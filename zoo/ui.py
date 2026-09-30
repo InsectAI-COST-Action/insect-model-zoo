@@ -26,53 +26,19 @@ NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Your own Latin names, e.g. Apis mellifera, Bombus terrestris  (empty = %s)"
-CSS = """
-.option-list { max-height: 320px !important; }                      /* long model lists scroll */
-/* the open model list: one box, one row per model with a line between models */
-ul.option-list { padding: 6px !important; background: #fff !important; border: 1px solid #e2e8f0 !important;
-                 border-radius: 12px !important; box-shadow: 0 12px 28px rgba(15, 23, 42, .12) !important; }
-ul.option-list li[role=option] { padding: 10px 12px !important; border-radius: 8px; position: relative; }
-ul.option-list li[role=option] + li[role=option]::before {           /* a straight line between two models */
-  content: ""; position: absolute; top: 0; left: 10px; right: 10px; border-top: 1px solid #e8edf3; }
-ul.option-list li[role=option]:hover, ul.option-list li[role=option].active { background: #f0fdf4 !important; }
-ul.option-list li[role=option].selected { background: #dcfce7 !important; font-weight: 600;
-                                          box-shadow: inset 3px 0 0 #22c55e; }
-ul.option-list li .inner-item { display: none; }                     /* no check mark: the green row shows it */
-.zoo-pills { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; pointer-events: none; }
-.zoo-pill { padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid;
-            line-height: 1.5; white-space: nowrap; }
-/* name + pills on one line, or wrapped onto more lines when there is no room (the pills keep their shape) */
-li[role=option]:has(> .zoo-pills), .secondary-wrap:has(> .zoo-pills) {
-  flex-wrap: wrap !important; align-items: center !important; column-gap: 8px; row-gap: 4px;
-  white-space: nowrap; word-break: normal !important; }
-.secondary-wrap:has(> .zoo-pills) { padding-right: 34px; }            /* leave room for the dropdown arrow */
-/* when name + pills do not fit on one line (phone, small window, many tags): name on top, pills centred below */
-.zoo-stacked { justify-content: center !important; }
-.zoo-stacked > .zoo-pills { flex-basis: 100%; justify-content: center; }
-.secondary-wrap.zoo-stacked { padding: 4px 34px 6px; }
-.secondary-wrap.zoo-stacked > input { text-align: center; }             /* e.g. 'none' */
-.zoo-pill.detector     { color: #15803d; background: #dcfce7; border-color: #86efac; }   /* green  */
-.zoo-pill.segmentation { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }   /* teal   */
-.zoo-pill.classifier   { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }   /* purple */
-.zoo-pill.hierarchical { color: #4338ca; background: #e0e7ff; border-color: #a5b4fc; }   /* indigo */
-.zoo-pill.zero-shot    { color: #b45309; background: #fef3c7; border-color: #fcd34d; }   /* amber  */
-.zoo-pill.text-prompt  { color: #0369a1; background: #e0f2fe; border-color: #7dd3fc; }   /* blue   */
-.zoo-pill.gated        { color: #be123c; background: #ffe4e6; border-color: #fda4af; }   /* red    */
-/* confidence sliders: an oval (pill) track with a round green handle; the value box on the right updates live */
-.zoo-slider input[type="range"] { height: 10px; border-radius: 999px; }
-.zoo-slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%;
-  background: #16a34a; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,.35); }
-.zoo-slider input[type="range"]::-moz-range-thumb {
-  width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; background: #16a34a; }
-.zoo-slider input[type="number"] {          /* the live value: a rounded green chip */
-  font-weight: 700; color: #15803d; text-align: center; border-radius: 999px !important;
-  background: #f0fdf4 !important; border: 1px solid #86efac !important; }
-.db-links { font-size: .85rem; color: #64748b; }
-.upload-hint { text-align: center; margin: -2px 0 0; color: #64748b; font-size: .85rem; }
-.upload-hint strong { color: #15803d; }
-"""
+def _page_css(name):
+    """One of the page's style files, from next to this module: theme.css (colours, font sizes) or ui.css
+    (layout, shapes)."""
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), encoding="utf-8").read()
 
+
+CSS = _page_css("ui.css")    # the layout; the theme is served live (see the Timer in build())
+
+
+def _theme_style():
+    """theme.css wrapped in a <style> tag, read again on each call - so the Timer in build() can push colour
+    changes to the browser as they happen, without re-running the app."""
+    return "<style>%s</style>" % _page_css("theme.css")
 # Runs in the browser. Gradio dropdowns only hold plain text, so the tags are added as coloured pills next to each
 # model name: in the open list and in the closed field. Also keeps the page light (Gradio follows the computer's
 # dark mode by adding a "dark" class to the page).
@@ -156,20 +122,14 @@ def header_html():
     insectai = _data_uri("logo_insectai.svg", "image/svg+xml")
     cost = _data_uri("logo_cost_eu.jpg", "image/jpeg")
     return """
-<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
-  <div style="display:flex; align-items:center; gap:14px">
-    <a href="https://insectai.eu/" target="_blank"><img src="{insectai}" alt="InsectAI" style="height:56px"></a>
-    <div style="display:flex; flex-direction:column; gap:2px">
-      <span style="font-size:1.35rem; font-weight:600">Model zoo</span>
-      <span style="font-size:.85rem">
-        <a href="{model_db}" target="_blank">Model database</a> &middot;
-        <a href="{bench_db}" target="_blank">Benchmark database</a></span>
-    </div>
+<div class="zoo-header">
+  <div class="zoo-brand">
+    <a href="https://insectai.eu/" target="_blank"><img src="{insectai}" alt="InsectAI" class="zoo-logo"></a>
+    <span class="zoo-title">Model zoo</span>
   </div>
-  <a href="https://www.cost.eu/actions/CA22129/" target="_blank"
-     style="background:#fff; border-radius:8px; padding:4px 10px; line-height:0">
-    <img src="{cost}" alt="COST - Funded by the European Union" style="height:36px"></a>
-</div>""".format(insectai=insectai, cost=cost, model_db=MODEL_DB, bench_db=BENCHMARK_DB)
+  <a href="https://www.cost.eu/actions/CA22129/" target="_blank" class="zoo-cost">
+    <img src="{cost}" alt="COST - Funded by the European Union" class="zoo-cost-logo"></a>
+</div>""".format(insectai=insectai, cost=cost)
 
 
 def family_choices(table, none_label=None):
@@ -361,6 +321,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     first_group = group_of(first)
     first_cls_group = group_of(first_cls) if first_cls else NONE
     with gr.Blocks(title="InsectAI model zoo") as demo:
+        theme = gr.HTML(_theme_style())   # the colours of the page, swapped in live by the timer below
+        live = gr.Timer(1)                # re-read theme.css every second: colour edits show up without a re-run
+        live.tick(lambda: gr.update(value=_theme_style()), None, theme, trigger_mode="once")
         gr.HTML(header_html())
         example = example_image if example_image and os.path.isfile(example_image) else None
         with gr.Row(equal_height=True):

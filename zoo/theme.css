@@ -1,0 +1,76 @@
+/* The theme of the model-zoo page: every colour and font size in one place, as CSS variables. ui.css (the
+   layout and shapes) reads them, so a value changed here moves the whole page. The page is always light:
+   the script in ui.py keeps taking Gradio's "dark" body class off. */
+:root {
+  /* font sizes */
+  --zoo-font-pill: .72rem; /* the tag pills next to the model names */
+  --zoo-font-hint: .85rem; /* the hint under the image */
+  --zoo-font-title: 1.35rem; /* the "Model zoo" title in the header */
+
+  /* shades of the page */
+  --zoo-page-bg: #fff; /* the open model list, the COST badge, the rim of the slider handle */
+  --zoo-list-border: #e2e8f0; /* the border of the open model list */
+  --zoo-list-shadow: 0 12px 28px rgba(15, 23, 42, .12);
+  --zoo-divider: #e8edf3; /* the line between two models in the list */
+  --zoo-text-dim: #64748b; /* the upload hint */
+
+  /* the green accent (Gradio's own theme is green too) */
+  --zoo-green-text: #15803d; /* emphasised text, the detector pill, the live slider value */
+  --zoo-green-handle: #16a34a; /* the slider handle */
+  --zoo-green-bg: #dcfce7; /* the selected row, the detector pill */
+  --zoo-green-bg-soft: #f0fdf4; /* a hovered row, the live slider value box */
+  --zoo-green-border: #86efac;
+  --zoo-green-bar: #22c55e; /* the bar on the left of the selected row */
+  --zoo-handle-shadow: 0 1px 4px rgba(15, 23, 42, .35);
+}
+
+/* the tag pills: each model type picks its own colours, used by .zoo-pill in ui.css */
+
+/* green */
+.zoo-pill.detector {
+  --pill-text: var(--zoo-green-text);
+  --pill-bg: var(--zoo-green-bg);
+  --pill-border: var(--zoo-green-border);
+}
+
+/* teal */
+.zoo-pill.segmentation {
+  --pill-text: #0f766e;
+  --pill-bg: #ccfbf1;
+  --pill-border: #5eead4;
+}
+
+/* purple */
+.zoo-pill.classifier {
+  --pill-text: #6d28d9;
+  --pill-bg: #ede9fe;
+  --pill-border: #c4b5fd;
+}
+
+/* indigo */
+.zoo-pill.hierarchical {
+  --pill-text: #4338ca;
+  --pill-bg: #e0e7ff;
+  --pill-border: #a5b4fc;
+}
+
+/* amber */
+.zoo-pill.zero-shot {
+  --pill-text: #b45309;
+  --pill-bg: #fef3c7;
+  --pill-border: #fcd34d;
+}
+
+/* blue */
+.zoo-pill.text-prompt {
+  --pill-text: #0369a1;
+  --pill-bg: #e0f2fe;
+  --pill-border: #7dd3fc;
+}
+
+/* red */
+.zoo-pill.gated {
+  --pill-text: #be123c;
+  --pill-bg: #ffe4e6;
+  --pill-border: #fda4af;
+}
