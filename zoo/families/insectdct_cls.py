@@ -18,6 +18,54 @@ import numpy as np
 TAG, MODEL_NAME, CROP = "CNB", "ConvNextBase", 224     # V7 ConvNeXt-Base, trained on 224 x 224 crops
 RANKS = {1: "order", 2: "family", 3: "genus/species"}
 
+# For Camtrap DP (scientific names only): the classes that are not plain Latin names -> (name, comment).
+# None = not an animal (left out of the observations).
+_SCIENTIFIC = {"Aranaea": ("Araneae", ""), "Birds": ("Aves", ""), "Formidicidae": ("Formicidae", ""),
+               "Hesperidae": ("Hesperiidae", ""), "Milipedes": ("Diplopoda", ""), "Moths": ("Lepidoptera", "moth"),
+               "Slugs": ("Gastropoda", "slug"), "Snails": ("Gastropoda", "snail"),
+               "Fritillaries": ("Nymphalidae", "fritillary"), "Larvae": ("Insecta", "larva"),
+               "Herpetofauna": ("Chordata", "reptile or amphibian"), "Hymenoptera_bees": ("Hymenoptera", "bee"),
+               "Hymenoptera_nobees": ("Hymenoptera", "not a bee"),
+               "Sphaerophoria scripta-complex": ("Sphaerophoria", "Sphaerophoria scripta complex"),
+               "Vegetation": None}
+_ORDERS = {"Araneae", "Coleoptera", "Dermaptera", "Diptera", "Hemiptera", "Hymenoptera", "Isopoda", "Lepidoptera",
+           "Odonata", "Orthoptera"}
+_CLASSES = {"Aves", "Insecta", "Diplopoda", "Gastropoda"}
+
+
+def scientific_name(taxon):
+    """insectDCT class name -> (scientific name, rank, comment) for Camtrap DP; None = not an animal.
+    E.g. 'Aranaea' -> Araneae (order), 'Aglais urticae_fw' -> Aglais urticae (species), 'Apoidea small' -> Apoidea."""
+    own = taxon
+    if taxon in _SCIENTIFIC:
+        if _SCIENTIFIC[taxon] is None:
+            return None
+        taxon, comment = _SCIENTIFIC[taxon]
+    else:
+        comment = ""
+        if taxon.endswith("_fw"):
+            taxon = taxon[:-3]
+        if taxon.startswith("Apoidea "):                           # 'Apoidea small', 'Apoidea red_abdomen', ...
+            taxon, comment = "Apoidea", taxon[len("Apoidea "):].replace("_", " ")
+    if own != taxon:
+        comment = "insectDCT class: %s%s" % (own, "; " + comment if comment else "")
+    words = taxon.split()
+    if len(words) == 2:
+        rank = "species"
+    elif taxon in _ORDERS:
+        rank = "order"
+    elif taxon in _CLASSES:
+        rank = "class"
+    elif taxon == "Chordata":
+        rank = "phylum"
+    elif taxon.endswith("idae"):
+        rank = "family"
+    elif taxon.endswith(("inae", "oidea")):                        # subfamily / superfamily: no Camtrap DP rank
+        rank = ""
+    else:
+        rank = "genus"
+    return taxon, rank, comment
+
 
 class Classifier:
     def __init__(self, card, weights_path, device):

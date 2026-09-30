@@ -1,8 +1,7 @@
-"""Common output for every model: a list of Detection -> annotated image + CSV (+ JSON with outlines for
+"""Common output for every model: a list of Detection -> annotated image, CSV and COCO JSON (with the outlines of
 segmentation models)."""
 
 import csv
-import json
 import os
 from dataclasses import dataclass
 
@@ -80,7 +79,7 @@ def draw(image_rgb, detections):
 
 
 def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name=""):
-    """Write <stem>_annotated.jpg, <stem>_detections.csv and (with outlines) <stem>_detections.json.
+    """Write <stem>_annotated.jpg, <stem>_detections.csv and <stem>_coco.json (COCO, e.g. to train a model on).
     Returns the list of written file paths."""
     import cv2
     os.makedirs(out_dir, exist_ok=True)
@@ -101,15 +100,10 @@ def save(image_path, image_rgb, detections, out_dir, model_name, classifier_name
         wr.writerows(d.row(name, model_name, classifier_name) for d in detections)
     files.append(out_csv)
 
-    if any(d.polygon is not None for d in detections):
-        out_json = os.path.join(out_dir, stem + "_detections.json")
-        h, w = image_rgb.shape[:2]
-        with open(out_json, "w", encoding="utf-8") as f:
-            json.dump({"image": name, "model": model_name, "classifier": classifier_name, "width": w, "height": h,
-                       "detections": [dict(d.row(name, model_name, classifier_name),
-                                           polygon=[[round(float(x), 1), round(float(y), 1)] for x, y in d.polygon]
-                                           if d.polygon is not None else None) for d in detections]}, f)
-        files.append(out_json)
+    from .export import Entry, write_coco
+    h, w = image_rgb.shape[:2]
+    files.append(write_coco(os.path.join(out_dir, stem + "_coco.json"), [Entry(image_path, name, w, h, detections)],
+                            model_name, classifier_name))
     return files
 
 

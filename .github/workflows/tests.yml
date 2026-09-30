@@ -38,6 +38,7 @@ jobs:
             python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           fi
           python -m pip install -r requirements.txt
+          python -m pip install frictionless     # test only: validates the Camtrap DP package
 
       - name: List models, hardware check, wrong model name
         run: |
@@ -56,7 +57,7 @@ jobs:
         run: |
           python main.py -m insectdct-v8-s -c none -d cpu -o ci_out
           python main.py -m flatbug-n -d cpu -f images -o ci_out
-          python main.py -m insectdct-v8-s -d cpu -o ci_out
+          python main.py -m insectdct-v8-s -d cpu -o ci_out --camtrapdp --latitude 56.16 --longitude 10.20
           python - <<'EOF'
           import csv, json, os
           for folder in ["insectdct-v8-s", "flatbug-n", "insectdct-v8-s+insectdct-cls-v7"]:
@@ -66,8 +67,13 @@ jobs:
               assert len(rows) >= 1, (folder, rows)
               assert os.path.isfile(os.path.join(d, "test_image_annotated.jpg")), folder
               print(folder, len(rows), "detections OK", [r["taxon"] for r in rows])
-          js = json.load(open(os.path.join("ci_out", "flatbug-n", "test_image_detections.json")))
-          assert all(len(det["polygon"]) > 2 for det in js["detections"]), "flat-bug outlines missing"
+          coco = json.load(open(os.path.join("ci_out", "flatbug-n", "test_image_coco.json")))
+          assert coco["annotations"], "COCO: no annotations"
+          assert all(len(a["segmentation"][0]) >= 6 for a in coco["annotations"]), "COCO: flat-bug outlines missing"
+          from frictionless import validate
+          report = validate(os.path.join("ci_out", "insectdct-v8-s+insectdct-cls-v7", "camtrap-dp", "datapackage.json"))
+          assert report.valid, report.flatten(["type", "message"])
+          print("Camtrap DP package valid")
           with open(os.path.join("ci_out", "insectdct-v8-s+insectdct-cls-v7", "test_image_detections.csv")) as f:
               taxa = [r["taxon"] for r in csv.DictReader(f)]
           assert "Apis mellifera" in taxa, taxa           # the test image is a honey bee

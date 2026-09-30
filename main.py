@@ -29,6 +29,16 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
+CAMTRAPDP = False                        # True = also write a Camtrap DP data package (the camera-trap data standard,
+                                         # e.g. for GBIF) to OUTPUT_DIR/.../camtrap-dp/, same as --camtrapdp
+CAMTRAPDP_INFO = dict(                   # what Camtrap DP needs to know; check it before you share a package
+    project="Insect camera trap",        #   project title
+    contributor="",                      #   your name or organisation (contact); the zoo is listed as well
+    deployment_id=None,                  #   camera / site name; None = the images folder's name (or --deployment_id)
+    latitude=None, longitude=None,       #   camera position in decimal degrees (WGS84); None = the photos' GPS, if any
+    capture_method="timeLapse",          #   "timeLapse" (photos at set times) or "activityDetection" (motion trigger)
+    sampling_design="targeted",          #   simpleRandom, systematicRandom, clusteredRandom, experimental, targeted
+)                                        #   or opportunistic
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 # How to get one (5 min): docs/GATED_MODELS.md.  Keep it private: never share or push main.py with your token in it.
@@ -53,7 +63,7 @@ if os.name == "nt" and len(HERE) > 140:
           "e.g. C:\\code\\insect-model-zoo, and create the .venv again.\n" % len(HERE))
 
 sys.path.insert(0, HERE)
-from zoo import hardware, results                                                        # noqa: E402
+from zoo import export, hardware, results                                                # noqa: E402
 from zoo.registry import CLASSIFIERS, MODELS, get_classifier, get_model, models_table    # noqa: E402
 from zoo import registry                                                                  # noqa: E402
 
@@ -97,6 +107,11 @@ def build_parser():
     p.add_argument("--check", action="store_true", help="show GPU / RAM and which models fit, then exit")
     p.add_argument("--download", metavar="MODEL", help="only download the weights of MODEL ('all' = every model)")
     p.add_argument("--ui", action="store_true", help="open the web UI (the default when no arguments are given)")
+    p.add_argument("--camtrapdp", "--camtrapDP", "--camtrap_dp", "--camtrap-dp", action="store_true",
+                   help="also write a Camtrap DP data package (camera-trap data standard) to <output>/camtrap-dp/")
+    p.add_argument("--latitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
+    p.add_argument("--longitude", type=float, help="Camtrap DP: camera position (decimal degrees; default: photo GPS)")
+    p.add_argument("--deployment_id", help="Camtrap DP: camera / site name (default: the images folder's name)")
     p.add_argument("--port", type=int, help="port for the web UI (default: first free port from 7860)")
     return p
 
@@ -192,10 +207,14 @@ def run_cli(args, card, classifier):
             " (no names given: %s)" % registry.bioclip_empty_text() if classifier.classes else ""))
     print("%d image(s)\n" % len(images))
 
-    rows, failed = [], []
+    camtrapdp = args.camtrapdp or CAMTRAPDP
+    for name, value, low, high in (("latitude", args.latitude, -90, 90), ("longitude", args.longitude, -180, 180)):
+        if value is not None and not low <= value <= high:
+            sys.exit("--%s must be between %d and %d (got %s)" % (name, low, high, value))
+    rows, failed, entries = [], [], []
     for n, path in enumerate(images, 1):
         try:
-            _, dets, secs, _ = zoo.run_file(path, threshold, iou, out_dir, prompt, classes, cls_threshold)
+            image, dets, secs, _ = zoo.run_file(path, threshold, iou, out_dir, prompt, classes, cls_threshold)
         except Exception as e:
             print("[%d/%d] %s: FAILED (%s)" % (n, len(images), os.path.basename(path), e))
             failed.append(path)
@@ -205,11 +224,35 @@ def run_cli(args, card, classifier):
             n, len(images), os.path.basename(path), len(dets),
             (": " + ", ".join("%s x%d" % t for t in taxa.most_common(5))) if taxa else "", secs))
         rows += [d.row(os.path.basename(path), card.name, classifier.name if classifier else "") for d in dets]
+        entries.append(export.Entry(path, os.path.relpath(path, folder) if folder else os.path.basename(path),
+                                    image.shape[1], image.shape[0], dets))
 
+    cls_name = classifier.name if classifier else ""
     if len(images) > 1:
         results.write_summary_csv(os.path.join(out_dir, "all_detections.csv"), rows)
+        export.write_coco(os.path.join(out_dir, "coco.json"), entries, card.name, cls_name)
+    if camtrapdp and entries:
+        write_camtrapdp(args, out_dir, entries, card, classifier)
     print("\nDone: %d detection(s) in %d image(s)%s. Results in:\n  %s"
           % (len(rows), len(images) - len(failed), " (%d failed)" % len(failed) if failed else "", out_dir))
+
+
+def write_camtrapdp(args, out_dir, entries, card, classifier):
+    import importlib
+    info = dict(CAMTRAPDP_INFO)
+    info.update({k: v for k, v in (("deployment_id", args.deployment_id), ("latitude", args.latitude),
+                                   ("longitude", args.longitude)) if v is not None})
+    # a classifier's own class names -> scientific names (e.g. insectDCT 'Aranaea' -> 'Araneae'), if it has a map
+    name_map = getattr(importlib.import_module("zoo.families." + classifier.family), "scientific_name", None) \
+        if classifier else None
+    folder = os.path.join(out_dir, "camtrap-dp")
+    problems = export.write_camtrapdp(folder, entries, card.name, classifier.name if classifier else "", info,
+                                      name_map)
+    print("\nCamtrap DP data package: %s" % folder)
+    print("  project '%s', capture method %s, sampling design %s (change CAMTRAPDP_INFO at the top of main.py if "
+          "that is wrong)" % (info["project"], info["capture_method"], info["sampling_design"]))
+    for problem in problems:
+        print("  NOT VALID YET: " + problem)
 
 
 def main(argv=None):

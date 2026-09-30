@@ -201,7 +201,7 @@ away; click it or drag your own photo onto it to analyse yours.
 - The first time you use a model, the Detect button shows its download (e.g. "Downloading flatbug-l · 32 MB / 80 MB")
   until it is done.
 - The result shows what was found (e.g. "1 found · Apis mellifera ×1 · 1.8 s · cuda:0") and can be downloaded; the
-  CSV/JSON files are saved to `output/<detector>+<classifier>/`.
+  CSV and COCO JSON files are saved to `output/<detector>+<classifier>/` (see [Output](#output)).
 
 Stop the UI with **Ctrl+C** in the terminal.
 
@@ -217,6 +217,7 @@ python main.py -m flatbug-m -c insectdct-cls-v7               # flat-bug finds, 
 python main.py -m flatbug-m -c bioclip-2.5 --classes "Apis mellifera, Bombus terrestris, Eristalis tenax"
 python main.py -m insectdct-v8-s -c none -t 0.25 -d cpu       # detection only, own threshold, force CPU
 python main.py -m sam3 -p "bee, butterfly" -c bioclip-2.5     # text prompt (sam3 is gated, see below)
+python main.py -f my_camera_1 --camtrapdp --latitude 56.16 --longitude 10.20   # + a Camtrap DP data package
 python main.py --download all                                 # fetch all weights now (e.g. before going offline)
 python main.py --help                                         # all options + the model list
 ```
@@ -234,6 +235,9 @@ python main.py --help                                         # all options + th
 | `--input_folder` | `-f` | all images in a folder (`.jpg .png .tif .bmp .webp .heic`) | – |
 | `--output_dir` | `-o` | where results go (a sub-folder per detector + classifier) | `output` |
 | `--device` | `-d` | `auto`, `cpu`, `cuda`, `cuda:1`, `mps` | `auto` |
+| `--camtrapdp` | | also write a [Camtrap DP](#camtrap-dp) data package (also `--camtrapDP`) | off |
+| `--latitude`, `--longitude` | | Camtrap DP: where the camera was, decimal degrees (WGS84) | the photos' GPS |
+| `--deployment_id` | | Camtrap DP: camera / site name | the images folder's name |
 | `--list_models` | `-l` | list the models and exit | |
 | `--check` | | hardware report: GPU, RAM, which models fit | |
 | `--download MODEL` | | only download weights (`all` = every model) | |
@@ -262,6 +266,16 @@ INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
 DEVICE = "auto"                          # auto = NVIDIA GPU (cuda) -> Apple GPU (mps) -> CPU; or "cpu", "cuda:1", ...
+CAMTRAPDP = False                        # True = also write a Camtrap DP data package (the camera-trap data standard,
+                                         # e.g. for GBIF) to OUTPUT_DIR/.../camtrap-dp/, same as --camtrapdp
+CAMTRAPDP_INFO = dict(                   # what Camtrap DP needs to know; check it before you share a package
+    project="Insect camera trap",        #   project title
+    contributor="",                      #   your name or organisation (contact); the zoo is listed as well
+    deployment_id=None,                  #   camera / site name; None = the images folder's name (or --deployment_id)
+    latitude=None, longitude=None,       #   camera position in decimal degrees (WGS84); None = the photos' GPS, if any
+    capture_method="timeLapse",          #   "timeLapse" (photos at set times) or "activityDetection" (motion trigger)
+    sampling_design="targeted",          #   simpleRandom, systematicRandom, clusteredRandom, experimental, targeted
+)                                        #   or opportunistic
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 HF_TOKEN = ""
@@ -276,8 +290,38 @@ For each image, in `output/<detector>+<classifier>/` (just `output/<detector>/` 
 - `<image>_detections.csv`: one row per detection (pixels, top-left origin):
   `image, model, x1, y1, x2, y2, confidence, label, classifier, taxon, taxon_score, taxon_rank`.
   `taxon` is `Unsure` when the insectDCT classifier is not sure at any level.
-- `<image>_detections.json`: the same plus the outline polygon of each insect (segmentation models only)
-- `all_detections.csv`: all images of a folder run in one table
+- `<image>_coco.json`: the same in [COCO](https://cocodataset.org/#format-data) format, e.g. to train or fine-tune
+  a model on (as pre-labels to check): `bbox` = `[x, y, width, height]` in pixels, the outline of each insect as a
+  `segmentation` polygon (segmentation models), and the category = the taxon (or the detector's label when there is
+  no classifier or it is unsure). Each annotation also keeps `score`, `label`, `taxon`, `taxon_score`, `taxon_rank`.
+- `all_detections.csv` and `coco.json`: all images of a folder run in one table / one COCO file (`file_name` relative
+  to the folder)
+
+### Camtrap DP
+
+With `--camtrapdp` (or `CAMTRAPDP = True`), the zoo also writes a
+[Camtrap DP 1.0.2](https://camtrap-dp.tdwg.org) data package to `output/<detector>+<classifier>/camtrap-dp/`: the
+TDWG standard for camera-trap data, read by GBIF, Agouti, camtraptor (R) and others. It holds `datapackage.json`
+(metadata) and `deployments.csv`, `media.csv`, `observations.csv`.
+
+- **One deployment** (camera / site) per run, named after the images folder (or `--deployment_id`). Its position comes
+  from `--latitude` / `--longitude` (or `CAMTRAPDP_INFO`), else from the photos' GPS. Without a position the package is
+  written but is **not valid yet**: the terminal says so, and you can fill in `latitude` / `longitude` in
+  `deployments.csv`.
+- **Time** of each photo: its EXIF date (with the time zone if the camera stored it, else this computer's), else the
+  file's modification time. The deployment's start / end are the first / last photo.
+- **One observation per detection** (`observationLevel` = media), with the box as fractions of the image
+  (`bboxX, bboxY, bboxWidth, bboxHeight`), `classificationMethod` = machine, `classifiedBy` = the models used and
+  `classificationProbability` = the classifier's score (or the detector's when there is no classifier). A photo
+  without detections gets one `blank` observation.
+- **Scientific names** only: BioCLIP's are already scientific; insectDCT's own class names are converted (e.g.
+  *Aranaea* → Araneae, *Birds* → Aves, *Hymenoptera_bees* → Hymenoptera with the comment "bee"), and boxes it calls
+  *Vegetation* are left out. Without a classifier: Insecta (insectDCT) or Arthropoda (flat-bug).
+- `filePath` links to each photo where it is (`file:///...`): to publish the package, replace them with the photos'
+  web addresses (or upload the photos with it, e.g. to Agouti).
+- **Check `CAMTRAPDP_INFO`** at the top of `main.py` first: project title, your name, and how the camera took photos
+  (`timeLapse` or `activityDetection`) and was placed (`targeted`, `opportunistic`, ...). The package is tested
+  against the official Camtrap DP schemas.
 
 ---
 
@@ -534,7 +578,8 @@ docs/GATED_MODELS.md    how to get access to gated models (sam3) and where the t
 zoo/weights.py          download + cache + checksum of weights (one download at a time per file)
 zoo/hardware.py         device choice and hardware check
 zoo/engine.py           load the detector + classifier and run them (GPU -> CPU fallback)
-zoo/results.py          drawing and CSV / JSON output
+zoo/results.py          drawing and CSV / COCO JSON output per image
+zoo/export.py           COCO JSON and Camtrap DP data package
 zoo/ui.py               the web UI (Gradio)
 images/test_image.jpg   a test image (a honey bee from our own camera)
 assets/                 InsectAI and COST logos for the UI
