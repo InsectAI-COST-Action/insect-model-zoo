@@ -55,6 +55,8 @@ class ModelCard:
     group: str = ""            # model family shown once in the UI list, e.g. "flat-bug" ("" = the name itself)
     variant: str = ""          # size / version within the family, e.g. "M" (shown when the family is picked)
     gated: str = ""            # Hugging Face page where access must be requested (needs HF_TOKEN); "" = open download
+    species_table: tuple = ()  # zero-shot classifiers: WeightFiles of pre-computed text features for every taxon the
+                               # model knows (used when you give no names); downloaded next to the weights
 
 
 MODELS = {}         # detectors
@@ -190,11 +192,13 @@ OTHER_LIFE = (("plant", "a photo of Plantae Tracheophyta Magnoliopsida.", "class
               ("amphibian", "a photo of Animalia Chordata Amphibia.", "class"),
               ("snail or slug", "a photo of Animalia Mollusca Gastropoda.", "class"),
               ("earthworm", "a photo of Animalia Annelida Clitellata.", "class"))
-BIOCLIP_INSECT_TAXA = True     # set from main.py: True = BioCLIP's default names are insect/arthropod orders only
+BIOCLIP_INSECT_TAXA = True     # set from main.py: True = BioCLIP picks from insects only; False = whole tree of life
+SPECIES_TABLE_SURE = 0.5       # BioCLIP without names answers at the deepest rank at least this sure (UI: the slider)
 
 
 def bioclip_default_classes():
-    """BioCLIP's names when you give none: arthropod orders, plus other life if BIOCLIP_INSECT_TAXA is False."""
+    """The names your own BioCLIP names compete with: arthropod orders, plus other life if BIOCLIP_INSECT_TAXA is
+    False. (Without your own names BioCLIP picks from its whole species table instead, see zoo/families/bioclip.py.)"""
     return ARTHROPOD_ORDERS if BIOCLIP_INSECT_TAXA else ARTHROPOD_ORDERS + OTHER_LIFE
 
 
@@ -224,7 +228,23 @@ def clean_latin_names(names):
 
 
 def bioclip_default_text():
+    """What your own BioCLIP names are always compared with."""
     return "arthropod orders" if BIOCLIP_INSECT_TAXA else "arthropod orders + plants, fungi, birds, mammals, ..."
+
+
+def bioclip_empty_text():
+    """What BioCLIP picks from when you give no names."""
+    return ("every insect species it knows (about 250,000)" if BIOCLIP_INSECT_TAXA
+            else "every taxon in the tree of life it knows (about 800,000)")
+
+
+TOL_REVISION = "5f2dc493b3dc0e544438a04038ab15faa646b749"      # imageomics/TreeOfLife-200M (dataset, CC0), pinned
+_TOL = "https://huggingface.co/datasets/imageomics/TreeOfLife-200M/resolve/%s/embeddings/" % TOL_REVISION
+
+
+def _tol(stem, npy_size, npy_sha, json_size, json_sha):
+    return (WeightFile(stem + ".npy", (_TOL + stem + ".npy",), npy_size, npy_sha),
+            WeightFile(stem + ".json", (_TOL + stem + ".json",), json_size, json_sha))
 
 
 _BIOCLIP = dict(
@@ -238,23 +258,29 @@ _BIOCLIP = dict(
 )
 _add(name="bioclip-2.5", title="BioCLIP 2.5 Huge (zero-shot, any names)", architecture="ViT-H/14 (open_clip)",
      group="BioCLIP 2.5", variant="Huge",
-     task="any names you give (zero-shot); default: arthropod orders",
+     task="any names you give (zero-shot); none given: ~250,000 insect species (or the whole tree of life)",
      weights=WeightFile("open_clip_model.safetensors",
                         ("https://huggingface.co/imageomics/bioclip-2.5-vith14/resolve/"
                          "6e3d04e3d6522012c88181085c5ae666e14c45cd/open_clip_model.safetensors",),
                         3944517804, "ac2e37c2f89ef8e6b889176a9a3f418970ad9db15a218bd29e3321e95c46ae97"),
-     min_ram_gb=8, min_vram_gb=3,
-     description="Biology foundation model trained on 200M+ images of the tree of life: give it names (species, "
-                 "genera, orders, common names) and it picks the best match for each insect. The strongest BioCLIP.",
+     species_table=_tol("txt_emb_bioclip-2.5-vith14",
+                        3255820416, "d1cc734330d17ea26e6f713b289b2138b4adc90d4f524349cd16fab42d5c3358",
+                        84142188, "af0cb41ffbfb31e6a2e2d5e3a402529ec8245a4268f42ce45ee4e977b7127443"),
+     min_ram_gb=9, min_vram_gb=3.5,
+     description="Biology foundation model trained on 200M+ images of the tree of life. Without names it picks from "
+                 "every insect species it knows; or give it names (species, genera, orders). The strongest BioCLIP.",
      extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2.5-vith14"},
      **_BIOCLIP)
 _add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="ViT-L/14 (open_clip)", group="BioCLIP 2", variant="L",
-     task="any names you give (zero-shot); default: arthropod orders",
+     task="any names you give (zero-shot); none given: ~260,000 insect species (or the whole tree of life)",
      weights=WeightFile("open_clip_model.safetensors",
                         ("https://huggingface.co/imageomics/bioclip-2/resolve/"
                          "2957b322090f9cb17ae72c71981c7218a28d81e0/open_clip_model.safetensors",),
                         1710517724, "b7b2bf6fbc95799e42630e394cf95803892ab447c1a8ab629dbc82fbeaf7dfef"),
-     min_ram_gb=4, min_vram_gb=2,
+     species_table=_tol("txt_emb_bioclip-2",
+                        2664821888, "c72442de7b0cb7fcb55ab7ca08099d0f42fbd6769efe16ca64c1daa7a8b87db2",
+                        91586174, "4648928b006f85d83d28e5a27074ca9363465d82e778d708b369c5eaf54b8ef5"),
+     min_ram_gb=5, min_vram_gb=2.5,
      description="Smaller, faster BioCLIP (half the size of 2.5) with the same way of working.",
      extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2"},
      **_BIOCLIP)
@@ -331,16 +357,21 @@ def models_table():
     access = lambda c: "GATED *" if c.gated else "open"                                   # noqa: E731
     tag_text = lambda c: ", ".join(t for t in tags(c) if t != "gated")                   # noqa: E731
     det = [("DETECTOR (-m)", "TAGS", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS", "DEFAULT CLASSIFIER")]
-    det += [(c.name, tag_text(c), c.architecture, size_text(c.weights.size), c.license, access(c),
+    det += [(c.name, tag_text(c), c.architecture, size_text(download_size(c)), c.license, access(c),
              c.default_classifier or "-") for c in MODELS.values()]
     cls = [("CLASSIFIER (-c)", "TAGS", "CLASSES", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS")]
-    cls += [(c.name, tag_text(c), c.task, c.architecture, size_text(c.weights.size), c.license, access(c))
+    cls += [(c.name, tag_text(c), c.task, c.architecture, size_text(download_size(c)), c.license, access(c))
             for c in CLASSIFIERS.values()]
     text = table(det) + "\n\n" + table(cls)
     if any(c.gated for c in list(MODELS.values()) + list(CLASSIFIERS.values())):
         text += "\n\n  * GATED = free, but you must request access and add a Hugging Face token first.\n" \
                 "    How to (5 minutes): " + GATED_GUIDE_URL
     return text
+
+
+def download_size(card):
+    """Bytes downloaded for a model: its weights plus (zero-shot classifiers) its species table."""
+    return card.weights.size + sum(f.size for f in card.species_table)
 
 
 def size_text(nbytes):

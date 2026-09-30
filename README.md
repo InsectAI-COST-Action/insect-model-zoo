@@ -184,8 +184,10 @@ A page opens in your browser (http://127.0.0.1:7860) with just an **image**, a *
 dropdown, two **confidence** sliders and **Detect**. A sample image is preloaded, so you can press Detect straight
 away; click it or drag your own photo onto it to analyse yours.
 
-- **Detection confidence**: boxes the detector is less sure about are dropped. **Classification confidence**: names
-  the classifier is less sure about are shown as *Unsure* (0 = keep every name). Each slider shows its value live.
+- **Detection confidence**: boxes the detector is less sure about are dropped. **Classification confidence**: for
+  BioCLIP without names, how sure the answer must be (default 0.5): lower gives more specific names (species), higher
+  surer ones (genus, family, order). For the other classifiers, names below it are shown as *Unsure* (default 0).
+  Each slider shows its value live.
 - **Classifier only**: pick *whole image (classifier only)* as the detector. The whole photo then counts as one box
   and only the classifier runs, e.g. for close-ups where the insect fills the frame (on a wide scene it names the
   whole scene, not one small insect). Results go to `output/whole-image+<classifier>/`.
@@ -224,9 +226,10 @@ python main.py --help                                         # all options + th
 | `--model` | `-m` | detector (a wrong name lists the models and suggests the closest one) | `insectdct-v8-m` |
 | `--classifier` | `-c` | classifier: `auto` = the detector's own (if any), `none`, or a name | `auto` |
 | `--threshold` | `-t` | detection confidence 0–1; lower finds more but also more false positives | the model's own value |
+| `--cls_threshold` | | classification confidence 0–1: BioCLIP without names answers at the deepest rank at least this sure (lower = more specific, e.g. `0` = always the species); other classifiers: below it = *Unsure* | BioCLIP: 0.5 |
 | `--iou` | | overlap (0–1) above which two boxes are merged as the same insect | the model's own value |
 | `--prompt` | `-p` | what to look for, for text-prompt detectors (`sam3`): `"bee"` or `"bee, butterfly"` | `insect` |
-| `--classes` | | Latin names for zero-shot classifiers (`bioclip-*`): `"Apis mellifera, Bombus terrestris"` or a `.txt` file with one name per line | arthropod orders |
+| `--classes` | | Latin names for zero-shot classifiers (`bioclip-*`): `"Apis mellifera, Bombus terrestris"` or a `.txt` file with one name per line | every insect species BioCLIP knows |
 | `--input_image` | `-i` | one image | `images/test_image.jpg` |
 | `--input_folder` | `-f` | all images in a folder (`.jpg .png .tif .bmp .webp .heic`) | – |
 | `--output_dir` | `-o` | where results go (a sub-folder per detector + classifier) | `output` |
@@ -246,12 +249,15 @@ MODEL = "insectdct-v8-m"                 # detector, see `python main.py --list_
 CLASSIFIER = "auto"                      # auto = the detector's own classifier (insectDCT -> insectdct-cls-v7, others
                                          # none), "none", or a classifier name, e.g. "bioclip-2.5"
 THRESHOLD = None                         # detection confidence 0-1; None = the model's recommended value
+CLS_THRESHOLD = None                     # classification confidence 0-1 (None = the classifier's own choice; BioCLIP
+                                         # without names: 0.5). BioCLIP answers at the deepest rank at least this sure:
+                                         # lower = more specific (species), higher = surer (genus, family, order)
 IOU = None                               # overlap above which two boxes count as the same insect; None = model default
 PROMPT = None                            # what text-prompt detectors (sam3) look for, e.g. "bee" or "bee, butterfly"
 CLASSES = None                           # names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris"
-                                         # or a .txt file with one name per line; None = arthropod orders
-BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = insect/arthropod orders only;
-                                         # False = it may also say plant, fungus, bird, mammal, ... (not an insect)
+                                         # or a .txt file with one name per line; None = every species it knows
+BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = picks from every insect species it
+                                         # knows (~250,000); False = the whole tree of life (~800,000: plants, birds...)
 INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
@@ -303,8 +309,8 @@ Hugging Face token once. **[How to (5 minutes)](docs/GATED_MODELS.md)**.
 | Model | Tags | Classes | Architecture | Weights | License | Paper | Code |
 |---|---|---|---|---|---|---|---|
 | `insectdct-cls-v7` | `classifier` `hierarchical` | 104 insect taxa, as deep as it is sure: order → family → genus/species | ConvNeXt-Base, 224 px crops | 484 MB | GPL-3.0 | [bioRxiv](https://doi.org/10.64898/2026.07.07.736939) | [insectDCT](https://github.com/kimbjerge/insectDCT) |
-| `bioclip-2.5` | `classifier` `zero-shot` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-H/14 | 3.7 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
-| `bioclip-2` | `classifier` `zero-shot` | **any names you give** (zero-shot); default: 16 arthropod orders | ViT-L/14 | 1.6 GB | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
+| `bioclip-2.5` | `classifier` `zero-shot` | **any names you give**; none given: **248,369 insect species** (or the whole tree of life) | ViT-H/14 | 3.7 GB + 3.3 GB species table | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
+| `bioclip-2` | `classifier` `zero-shot` | **any names you give**; none given: **264,036 insect species** (or the whole tree of life) | ViT-L/14 | 1.6 GB + 2.7 GB species table | MIT | [arXiv](https://doi.org/10.48550/arXiv.2505.23883) | [BioCLIP 2](https://github.com/Imageomics/bioclip-2) |
 
 Each detected insect is cropped and classified; the result gets a `taxon`, a `taxon_score` (0–1) and, where known,
 a `taxon_rank`. Any detector works with any classifier.
@@ -372,32 +378,41 @@ of flower visitors. `taxon_score` is the model's probability for that taxon at t
 
 ### BioCLIP 2.5 and BioCLIP 2 (zero-shot)
 
-Biology foundation models from Imageomics, trained on the TreeOfLife-200M images. **You choose the names** (species,
-genera, families, orders, common names) and it picks the best match for each insect, so no training is needed.
-BioCLIP 2.5 Huge is the strongest; BioCLIP 2 is half the size. Works best with a list that matches what can be in your
-images, e.g. the pollinators of your site. `taxon_score` is the probability among all names it compares.
+Biology foundation models from Imageomics, trained on the TreeOfLife-200M images. They need no training for your
+data: BioCLIP compares each insect with a text for every name and picks the best match. BioCLIP 2.5 Huge is the
+strongest; BioCLIP 2 is half the size.
+
+**Without your own names** (the default), BioCLIP picks from **every insect species it knows**:
+
+| | BioCLIP 2.5 | BioCLIP 2 |
+|---|---|---|
+| Insect species (class Insecta, 41 orders) | 248,369 | 264,036 |
+| Whole tree of life (`BIOCLIP_INSECT_TAXA = False`) | 794,878 | 867,455 |
+
+It answers at the **deepest rank it is sure of**: the species when that is clear (e.g. *Apis mellifera*), otherwise
+the genus, family or order (e.g. *Syrphidae*), always with at least 50 % probability. `taxon_rank` in the CSV says
+which rank it is. Raise the *Classification confidence* slider (UI) to get broader but surer names.
+
+The species list and its text features come from the BioCLIP authors
+([TreeOfLife-200M](https://huggingface.co/datasets/imageomics/TreeOfLife-200M), CC0, pinned to a commit). They are
+downloaded with the model (2.7 GB for BioCLIP 2, 3.3 GB for BioCLIP 2.5) and turned once into a smaller cache
+(insects only: about 0.4-0.5 GB).
 
 > [!NOTE]
-> **Insects only by default.** BioCLIP is not trained or tuned for insects; it simply picks the closest of the names it
-> is given. When you give no names, the zoo gives it **16 arthropod orders** (13 insect orders + spiders, harvestmen,
-> woodlice). So every detection gets an insect/arthropod order, even something that is not an insect (e.g. a flower
-> the detector picked up), usually with a low score.
->
-> **To turn this off**, open `main.py` and change the line near the top to
+> **Insects only by default.** BioCLIP is not trained or tuned for insects, and with insects only it names every
+> detection as some insect, even something that is not one (e.g. a flower the detector picked up), usually with a low
+> score. **To pick from the whole tree of life** (plants, fungi, birds, spiders, ...), open `main.py` and change the
+> line near the top to
 > ```python
 > BIOCLIP_INSECT_TAXA = False
 > ```
-> BioCLIP then also chooses between *plant, fungus, bird, mammal, reptile, amphibian, snail or slug, earthworm*, so
-> things that are not insects are named as such. Insects still get their order.
 >
-> **Your own names** (`--classes` or the names field in the UI) must be **Latin names**: *Genus species*
-> (`Apis mellifera`, `Bombus terrestris`) or one capitalised genus / family / order (`Bombus`, `Syrphidae`). Anything
-> else (`apis`, `honey bee`) is refused with a message showing the right format. They are compared *together with*
-> these default names.
-> So one name alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of
-> your names gets the closest order (or *plant*, ... with `BIOCLIP_INSECT_TAXA = False`) instead of being forced
-> into one of your names. Write them as Latin names (`Genus species`, or a genus / family / order alone); upper
-> or lower case does not matter (`apis` = `Apis`).
+> **Your own names** (`--classes` or the names field in the UI) limit the choice to those names, e.g. the pollinators
+> of your site. They must be **Latin names**: *Genus species* (`Apis mellifera`, `Bombus terrestris`) or one genus /
+> family / order (`Bombus`, `Syrphidae`); upper or lower case does not matter. Anything else (`honey bee`) is refused
+> with a message showing the right format. They are compared *together with* the 16 arthropod orders, so one name
+> alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of your names
+> gets the closest order instead of being forced into one of your names.
 
 - **Paper:** Gu, Stevens, Campolongo et al. (2025). *BioCLIP 2: Emergent Properties from Scaling Hierarchical
   Contrastive Learning*. DOI [10.48550/arXiv.2505.23883](https://doi.org/10.48550/arXiv.2505.23883)
@@ -405,6 +420,8 @@ images, e.g. the pollinators of your site. `taxon_score` is the probability amon
 - **Code:** [github.com/Imageomics/bioclip-2](https://github.com/Imageomics/bioclip-2) · **License:** MIT
 - **Weights:** [imageomics/bioclip-2.5-vith14](https://huggingface.co/imageomics/bioclip-2.5-vith14) and
   [imageomics/bioclip-2](https://huggingface.co/imageomics/bioclip-2) on Hugging Face (open, pinned to a commit)
+- **Species table:** [imageomics/TreeOfLife-200M](https://huggingface.co/datasets/imageomics/TreeOfLife-200M)
+  `embeddings/` (CC0, pinned to a commit)
 
 ---
 
@@ -418,12 +435,12 @@ Weights are **not stored in this repository**. The files stay with the original 
 3. The **SHA-256 checksum** is checked, so you get exactly the file this zoo was tested with. If the upstream file
    ever changes, you get a clear error instead of silently different results.
 4. Every later run uses the local copy, so it **works offline**. To get everything in advance (fieldwork, cluster
-   login node, slow connection), run `python main.py --download all`: detectors ≈ 270 MB, classifiers ≈ 5.8 GB
-   (insectDCT 484 MB, BioCLIP 2.5 3.7 GB, BioCLIP 2 1.6 GB), plus 3.2 GB for `sam3` once you have access (skipped
-   without). Or download just one: `python main.py --download bioclip-2`.
-6. If two windows (e.g. the UI and a command line) need the same model at once, the second one waits for the first
+   login node, slow connection), run `python main.py --download all`: detectors ≈ 270 MB, classifiers ≈ 11.5 GB
+   (insectDCT 484 MB, BioCLIP 2.5 6.8 GB and BioCLIP 2 4.2 GB, each with its species table), plus 3.2 GB for `sam3`
+   once you have access (skipped without). Or download just one: `python main.py --download bioclip-2`.
+5. If two windows (e.g. the UI and a command line) need the same model at once, the second one waits for the first
    download to finish instead of downloading it twice.
-5. **Gated models** (`sam3`) download from Hugging Face with your token: see [docs/GATED_MODELS.md](docs/GATED_MODELS.md).
+6. **Gated models** (`sam3`) download from Hugging Face with your token: see [docs/GATED_MODELS.md](docs/GATED_MODELS.md).
 
 Delete `weights/<model>/` to download a model again. To keep weights somewhere else (e.g. a shared drive), set the
 environment variable `INSECT_ZOO_WEIGHTS=/path/to/folder`. Each model can have several URLs that are tried in order,
@@ -483,7 +500,7 @@ use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
 | Too slow | use a GPU, or smaller models (`insectdct-v8-s`, `flatbug-n`, `flatbug-s`, `bioclip-2`), or `-c none` |
 | Too many / too few detections | raise / lower `--threshold` (or the *Detection confidence* slider in the UI) |
 | BioCLIP gives odd names | give it a list that matches what can be in your images (`--classes`, or the names field in the UI) |
-| BioCLIP calls a flower or leaf an insect order | by default it only knows insect/arthropod orders: set `BIOCLIP_INSECT_TAXA = False` in `main.py` (see [BioCLIP](#bioclip-25-and-bioclip-2-zero-shot)) |
+| BioCLIP calls a flower or leaf an insect | by default it only picks from insects: set `BIOCLIP_INSECT_TAXA = False` in `main.py` (see [BioCLIP](#bioclip-25-and-bioclip-2-zero-shot)) |
 | `sam3`: *No Hugging Face token found* / *error 401* / *error 403* | see [docs/GATED_MODELS.md](docs/GATED_MODELS.md#if-it-does-not-work) |
 | UI on a remote Linux server / cluster (no screen) | run `python main.py --ui --port 7860` there and `ssh -L 7860:localhost:7860 you@server` from your laptop, then open http://127.0.0.1:7860; or just use the command line |
 

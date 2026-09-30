@@ -115,7 +115,7 @@ class Zoo:
         self._on_cpu_if_gpu_fails(self.classifier, lambda m: m.classify(image_rgb, dets, classes))
         return time.time() - t
 
-    def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None, cls_threshold=0.0):
+    def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None, cls_threshold=None):
         image = results.load_image(path)
         dets, secs = self.predict(image, threshold, iou, prompt)
         secs += self.classify(image, dets, classes)
@@ -124,7 +124,7 @@ class Zoo:
                              self.classifier.card.name if self.classifier.card else "")
         return image, dets, secs, files
 
-    def run_classify_only(self, path, out_dir, classes=None, cls_threshold=0.0):
+    def run_classify_only(self, path, out_dir, classes=None, cls_threshold=None):
         """No detector: treat the whole image as one box and just classify it."""
         image = results.load_image(path)
         h, w = image.shape[:2]
@@ -137,11 +137,16 @@ class Zoo:
 
 
 def _apply_taxon_threshold(dets, cls_threshold):
-    """Below the classification-confidence threshold, show the label as 'Unsure' instead of a guessed taxon."""
-    if not cls_threshold:
+    """The classification-confidence threshold (None = leave the classifier's own answer).
+    With a name per rank (BioCLIP's species table): answer at the deepest rank at least this sure, so lower = more
+    specific (species), higher = surer (genus, family, order). Other classifiers: a name below it becomes 'Unsure'."""
+    if cls_threshold is None:
         return
     for d in dets:
-        if d.taxon and d.taxon != "Unsure" and (d.taxon_score or 0.0) < cls_threshold:
+        if d.taxon_options:
+            d.taxon, d.taxon_score, d.taxon_rank = next(
+                (o for o in d.taxon_options if o[1] >= cls_threshold), ("Unsure", d.taxon_options[-1][1], ""))
+        elif d.taxon and d.taxon != "Unsure" and (d.taxon_score or 0.0) < cls_threshold:
             d.taxon = "Unsure"
 
 

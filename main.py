@@ -16,12 +16,15 @@ MODEL = "insectdct-v8-m"                 # detector, see `python main.py --list_
 CLASSIFIER = "auto"                      # auto = the detector's own classifier (insectDCT -> insectdct-cls-v7, others
                                          # none), "none", or a classifier name, e.g. "bioclip-2.5"
 THRESHOLD = None                         # detection confidence 0-1; None = the model's recommended value
+CLS_THRESHOLD = None                     # classification confidence 0-1 (None = the classifier's own choice; BioCLIP
+                                         # without names: 0.5). BioCLIP answers at the deepest rank at least this sure:
+                                         # lower = more specific (species), higher = surer (genus, family, order)
 IOU = None                               # overlap above which two boxes count as the same insect; None = model default
 PROMPT = None                            # what text-prompt detectors (sam3) look for, e.g. "bee" or "bee, butterfly"
 CLASSES = None                           # names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris"
-                                         # or a .txt file with one name per line; None = arthropod orders
-BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = insect/arthropod orders only;
-                                         # False = it may also say plant, fungus, bird, mammal, ... (not an insect)
+                                         # or a .txt file with one name per line; None = every species it knows
+BIOCLIP_INSECT_TAXA = True               # BioCLIP without your own names: True = picks from every insect species it
+                                         # knows (~250,000); False = the whole tree of life (~800,000: plants, birds...)
 INPUT_IMAGE = "images/test_image.jpg"    # one image ...
 INPUT_FOLDER = None                      # ... or a folder, e.g. "images" (used instead of INPUT_IMAGE when set)
 OUTPUT_DIR = "output"                    # results go to OUTPUT_DIR/<detector>[+<classifier>]/
@@ -79,10 +82,13 @@ def build_parser():
     p.add_argument("-c", "--classifier", help="classifier: auto (default: the detector's own, if any), none, or a name")
     p.add_argument("-t", "--threshold", type=float, help="confidence threshold 0-1 (default: the model's own value)")
     p.add_argument("--iou", type=float, help="overlap (IoU) threshold for merging duplicate boxes (default: model's)")
+    p.add_argument("--cls_threshold", type=float, help="classification confidence 0-1: BioCLIP without names answers at "
+                                                       "the deepest rank at least this sure (default 0.5; lower = more "
+                                                       "specific); other classifiers: below it = Unsure")
     p.add_argument("-p", "--prompt", help='what to look for, for text-prompt detectors (sam3): "bee" or "bee, fly"')
     p.add_argument("--classes", help='names for zero-shot classifiers (bioclip): "Apis mellifera, Bombus terrestris" '
-                                     'or a .txt file with one name per line (default: arthropod orders, see '
-                                     'BIOCLIP_INSECT_TAXA in main.py)')
+                                     'or a .txt file with one name per line (default: every insect species '
+                                     'BioCLIP knows, see BIOCLIP_INSECT_TAXA in main.py)')
     p.add_argument("-i", "--input_image", help="one image to process (default: %s)" % INPUT_IMAGE)
     p.add_argument("-f", "--input_folder", help="process every image in this folder")
     p.add_argument("-o", "--output_dir", help="where results go (default: %s/<detector>+<classifier>)" % OUTPUT_DIR)
@@ -102,8 +108,8 @@ def resolve(path, default):
     return os.path.abspath(path)
 
 
-def check_range(name, value):
-    if value is not None and not 0 < value < 1:
+def check_range(name, value, zero_ok=False):
+    if value is not None and not (0 <= value < 1 if zero_ok else 0 < value < 1):
         sys.exit("--%s must be between 0 and 1 (got %s)" % (name, value))
     return value
 
@@ -152,6 +158,8 @@ def run_cli(args, card, classifier):
     threshold = check_range("threshold", args.threshold if args.threshold is not None else THRESHOLD)
     iou = check_range("iou", args.iou if args.iou is not None else IOU)
     threshold = card.default_threshold if threshold is None else threshold
+    cls_threshold = check_range("cls_threshold",
+                                args.cls_threshold if args.cls_threshold is not None else CLS_THRESHOLD, zero_ok=True)
     iou = card.default_iou if iou is None else iou
     out_dir = output_folder(resolve(args.output_dir, OUTPUT_DIR), card, classifier)
     prompt = args.prompt if args.prompt is not None else PROMPT
@@ -181,13 +189,13 @@ def run_cli(args, card, classifier):
     if classifier:
         print("Classifier %s%s" % (classifier.name, (" (your %d name%s + %s)" % (
             len(classes), "" if len(classes) == 1 else "s", registry.bioclip_default_text())) if classes else
-            " (default: %s)" % registry.bioclip_default_text() if classifier.classes else ""))
+            " (no names given: %s)" % registry.bioclip_empty_text() if classifier.classes else ""))
     print("%d image(s)\n" % len(images))
 
     rows, failed = [], []
     for n, path in enumerate(images, 1):
         try:
-            _, dets, secs, _ = zoo.run_file(path, threshold, iou, out_dir, prompt, classes)
+            _, dets, secs, _ = zoo.run_file(path, threshold, iou, out_dir, prompt, classes, cls_threshold)
         except Exception as e:
             print("[%d/%d] %s: FAILED (%s)" % (n, len(images), os.path.basename(path), e))
             failed.append(path)

@@ -25,6 +25,7 @@ class Detection:
     taxon: str = ""           # set by a classifier: what the insect is ("Unsure" if the classifier is not sure)
     taxon_score: float = None  # classifier confidence 0-1
     taxon_rank: str = ""      # e.g. species / family / order, when the classifier knows it
+    taxon_options: list = None  # [(name, score, rank), ...] deepest first: broader names to fall back on (BioCLIP)
 
     def row(self, image, model, classifier=""):
         return {"image": image, "model": model, "x1": round(self.x1), "y1": round(self.y1), "x2": round(self.x2),

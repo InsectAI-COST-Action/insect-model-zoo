@@ -10,8 +10,10 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, bioclip_default_text, get_classifier, get_model,
-                       display_name, group_default, group_of, groups, clean_latin_names, size_text, tags)
+from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, SPECIES_TABLE_SURE, bioclip_empty_text,
+                       get_classifier, get_model,
+                       display_name, download_size, group_default, group_of, groups, clean_latin_names,
+                       size_text, tags)
 from .weights import GatedModelError, hf_token, is_downloaded
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statistics sent to Gradio
@@ -22,7 +24,7 @@ STARTING = "Starting ... (please wait)"
 NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
-CLASSES_HINT = "Latin names, e.g. Apis mellifera, Bombus terrestris  (always compared with %s)"
+CLASSES_HINT = "Your own Latin names, e.g. Apis mellifera, Bombus terrestris  (empty = %s)"
 CSS = """
 .option-list { max-height: 320px !important; }                      /* long model lists scroll */
 /* the open model list: one box, one row per model with a line between models */
@@ -162,7 +164,7 @@ def family_choices(table, none_label=None):
 
 
 def version_choices(group, table):
-    return [("%s · %s" % (c.variant or c.name, size_text(c.weights.size)), c.name) for c in groups(table)[group]]
+    return [("%s · %s" % (c.variant or c.name, size_text(download_size(c))), c.name) for c in groups(table)[group]]
 
 
 def build(model, device, threshold, iou, output_dir, example_image, prompt=None, classifier="auto", classes=None):
@@ -193,6 +195,13 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                                                                      GATED_GUIDE_URL))
         note = "  \n".join(notes)
         return gr.update(value=note, visible=bool(note))
+
+    def cls_slider(card, **kw):
+        """Classification confidence: BioCLIP (species table) picks the rank by it, the others say 'Unsure' below it."""
+        if card is not None and card.species_table:
+            return gr.update(value=SPECIES_TABLE_SURE, info="Lower = more specific (species), higher = surer "
+                                                            "(genus, family, order)", **kw)
+        return gr.update(value=0.0, info="Names below this show as 'Unsure'", **kw)
 
     def sizes(group, table, card):
         return gr.update(choices=version_choices(group, table), value=card.name, visible=len(groups(table)[group]) > 1)
@@ -227,7 +236,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                     gated_note(detector), gr.update(visible=False))
         card = group_default(group, CLASSIFIERS)
         return (sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)),
-                gated_note(detector, card), gr.update(visible=True))
+                gated_note(detector, card), cls_slider(card, visible=True))
 
     def run(det_name, cls_name, det_thr, cls_thr, text, classes_text, image_path):
         """The Detect button itself shows what is going on (download MB, loading, running) until the result is in.
@@ -285,7 +294,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         zoo.log = log
         for c in (card, cls):
             if c is not None and not is_downloaded(c):
-                print("Downloading %s weights (%s) ..." % (c.name, size_text(c.weights.size)))
+                print("Downloading %s weights (%s) ..." % (c.name, size_text(download_size(c))))
         yield gr.update(), gr.update(value=STARTING, interactive=False)    # at once, before any model loads
         worker = threading.Thread(target=work, daemon=True)
         worker.start()
@@ -348,13 +357,14 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 thr = gr.Slider(0.01, 0.99, step=0.01, label="Detection confidence", elem_classes="zoo-slider",
                                 value=threshold if threshold is not None else first.default_threshold,
                                 info="Boxes below this are dropped")
+                first_slider = cls_slider(first_cls)
                 cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
-                                    value=0.0, visible=bool(first_cls),
-                                    info="Names below this show as 'Unsure'")
+                                    value=first_slider["value"], info=first_slider["info"], visible=bool(first_cls))
         gated_md = gr.Markdown(visible=False)
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
-        classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1, placeholder=CLASSES_HINT % bioclip_default_text(),
+        classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1,
+                                 placeholder=CLASSES_HINT % bioclip_empty_text(),
                                  visible=bool(first_cls and first_cls.classes))
         run_btn = gr.Button(DETECT, variant="primary")
 

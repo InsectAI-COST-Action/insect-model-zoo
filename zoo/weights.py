@@ -50,13 +50,19 @@ def gated_help(card, problem):
         "Step-by-step guide: %s" % GATED_GUIDE_URL])
 
 
-def weight_path(card):
-    return os.path.join(WEIGHTS_DIR, card.name, card.weights.filename)
+def weight_path(card, wf=None):
+    """Local path of a model's weight file (or of another of its files, e.g. a species table)."""
+    return os.path.join(WEIGHTS_DIR, card.name, (wf or card.weights).filename)
+
+
+def _have(card, wf):
+    p = weight_path(card, wf)
+    return os.path.isfile(p) and os.path.getsize(p) == wf.size
 
 
 def is_downloaded(card):
-    p = weight_path(card)
-    return os.path.isfile(p) and os.path.getsize(p) == card.weights.size
+    """Weights and (zero-shot classifiers) species table are all there."""
+    return all(_have(card, wf) for wf in (card.weights,) + tuple(card.species_table))
 
 
 def sha256(path):
@@ -89,7 +95,9 @@ def ensure_weights(card, progress=None):
 
     progress(done_bytes, total_bytes, message) is called while downloading (the UI passes its own; the CLI gets a
     tqdm bar)."""
-    path = _ensure_weight_file(card, progress)
+    path = _ensure_file(card, card.weights, progress)
+    for wf in card.species_table:                   # BioCLIP: every taxon it knows (used when you give no names)
+        _ensure_file(card, wf, progress)
     _ensure_extra_files(card)
     return path
 
@@ -109,9 +117,9 @@ def _ensure_extra_files(card):
         os.replace(dest + ".part", dest)
 
 
-def _ensure_weight_file(card, progress):
-    dest = weight_path(card)
-    if is_downloaded(card):
+def _ensure_file(card, wf, progress):
+    dest = weight_path(card, wf)
+    if _have(card, wf):
         return dest
 
     token = hf_token() if card.gated else ""
@@ -120,28 +128,28 @@ def _ensure_weight_file(card, progress):
 
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     free = shutil.disk_usage(os.path.dirname(dest)).free
-    if free < card.weights.size + 200 * MB:
+    if free < wf.size + 200 * MB:
         raise RuntimeError("Not enough free disk space in %s for %s (%s needed, %s free)."
-                           % (WEIGHTS_DIR, card.weights.filename, size_text(card.weights.size), size_text(free)))
+                           % (WEIGHTS_DIR, wf.filename, size_text(wf.size), size_text(free)))
 
-    progress = progress or _tqdm_progress(card.weights.filename)
+    progress = progress or _tqdm_progress(wf.filename)
     lock = dest + ".lock"
     _acquire_lock(lock, progress, display_name(card))
     try:
-        if is_downloaded(card):             # another window finished it while we waited
+        if _have(card, wf):                 # another window finished it while we waited
             return dest
         tmp = dest + ".part"
         errors = []
-        for url in card.weights.urls:
+        for url in wf.urls:
             try:
-                _download(url, tmp, card.weights.size, card.weights.filename, progress, token, card, lock)
+                _download(url, tmp, wf.size, wf.filename, progress, token, card, lock)
             except GatedModelError:
                 raise
             except Exception as e:          # network error, 404, ... -> try the next mirror
                 errors.append("%s: %s" % (url, e))
                 continue
             digest = sha256(tmp)
-            if digest != card.weights.sha256:
+            if digest != wf.sha256:
                 os.remove(tmp)
                 errors.append("%s: checksum mismatch (got %s)" % (url, digest))
                 continue
@@ -150,7 +158,7 @@ def _ensure_weight_file(card, progress):
     finally:
         _release_lock(lock)
     raise RuntimeError("Could not download %s for model '%s':\n  %s\nCheck your internet connection, or download it "
-                       "manually and place it at %s" % (card.weights.filename, card.name, "\n  ".join(errors), dest))
+                       "manually and place it at %s" % (wf.filename, card.name, "\n  ".join(errors), dest))
 
 
 def _acquire_lock(lock, progress, name):
