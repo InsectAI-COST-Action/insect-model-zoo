@@ -16,7 +16,6 @@ import zipfile
 import numpy as np
 
 TAG, MODEL_NAME, CROP = "CNB", "ConvNextBase", 224     # V7 ConvNeXt-Base, trained on 224 x 224 crops
-RANKS = {1: "order", 2: "family", 3: "genus/species"}
 
 # For Camtrap DP (scientific names only): the classes that are not plain Latin names -> (name, comment).
 # None = not an animal (left out of the observations).
@@ -49,22 +48,33 @@ def scientific_name(taxon):
             taxon, comment = "Apoidea", taxon[len("Apoidea "):].replace("_", " ")
     if own != taxon:
         comment = "insectDCT class: %s%s" % (own, "; " + comment if comment else "")
-    words = taxon.split()
-    if len(words) == 2:
-        rank = "species"
-    elif taxon in _ORDERS:
-        rank = "order"
-    elif taxon in _CLASSES:
-        rank = "class"
-    elif taxon == "Chordata":
-        rank = "phylum"
-    elif taxon.endswith("idae"):
-        rank = "family"
-    elif taxon.endswith(("inae", "oidea")):                        # subfamily / superfamily: no Camtrap DP rank
-        rank = ""
-    else:
-        rank = "genus"
-    return taxon, rank, comment
+    rank = _rank(taxon)
+    return taxon, "" if rank in ("subfamily", "superfamily") else rank, comment   # Camtrap DP has no sub/super ranks
+
+
+def taxon_rank(taxon):
+    """Rank of an insectDCT class name, for the CSV / COCO output: 'Apis mellifera' -> species, 'Bombus' -> genus,
+    'Apoidea small' -> superfamily, 'Birds' -> class; '' for Vegetation."""
+    mapped = scientific_name(taxon)
+    return "" if mapped is None else _rank(mapped[0])
+
+
+def _rank(name):
+    if len(name.split()) == 2:
+        return "species"
+    if name in _ORDERS:
+        return "order"
+    if name in _CLASSES:
+        return "class"
+    if name == "Chordata":
+        return "phylum"
+    if name.endswith("idae"):
+        return "family"
+    if name.endswith("inae"):
+        return "subfamily"
+    if name.endswith("oidea"):
+        return "superfamily"
+    return "genus"
 
 
 class Classifier:
@@ -109,7 +119,7 @@ class Classifier:
                 outputs = self.clf.model(self.clf.imagesInBatch.to(self.clf.device))
                 d.taxon_score = float(outputs[level - 1].float().softmax(-1)[0, index])
             d.taxon = _name
-            d.taxon_rank = RANKS.get(level, "")
+            d.taxon_rank = taxon_rank(_name)        # a real rank: upstream level 3 mixes genus and species
 
 
 def _unpack(zip_path, folder):

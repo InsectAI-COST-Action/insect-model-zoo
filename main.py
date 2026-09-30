@@ -38,7 +38,12 @@ CAMTRAPDP_INFO = dict(                   # what Camtrap DP needs to know; check 
     latitude=None, longitude=None,       #   camera position in decimal degrees (WGS84); None = the photos' GPS, if any
     capture_method="timeLapse",          #   "timeLapse" (photos at set times) or "activityDetection" (motion trigger)
     sampling_design="targeted",          #   simpleRandom, systematicRandom, clusteredRandom, experimental, targeted
-)                                        #   or opportunistic
+                                         #   or opportunistic
+    timezone=None,                       #   the camera clock's zone, used when a photo does not store it: "+02:00" or
+                                         #   "Europe/Copenhagen"; None = this computer's zone
+    data_license=None,                   #   licence of the data, e.g. "CC-BY-4.0" or "CC0-1.0" (GBIF needs one)
+    media_license=None,                  #   licence of the photos, if you share them
+)
 
 # Hugging Face token, only needed for GATED models (sam3). Paste it between the quotes: HF_TOKEN = "hf_..."
 # How to get one (5 min): docs/GATED_MODELS.md.  Keep it private: never share or push main.py with your token in it.

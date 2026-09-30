@@ -8,7 +8,8 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .registry import REPO_URL
@@ -81,7 +82,8 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     observations.csv in `folder`. One deployment (camera / site) for all images; one observation per detection
     (observationLevel media); an image without detections gets one 'blank' observation.
 
-    info: project, contributor, deployment_id, latitude, longitude, capture_method, sampling_design (main.py).
+    info: project, contributor, deployment_id, latitude, longitude, capture_method, sampling_design, timezone,
+    data_license, media_license (CAMTRAPDP_INFO in main.py).
     name_map(taxon) -> (scientific name, rank, comment) or None (not an animal): turns a classifier's own class names
     into scientific names (e.g. insectDCT's 'Aranaea' -> 'Araneae'). Returns the list of problems (empty = valid)."""
     info = dict(info or {})
@@ -91,7 +93,12 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     by = "InsectAI model zoo: %s%s" % (detector, " + " + classifier if classifier else "")
 
     deployment = info.get("deployment_id") or _deployment_name(entries)
-    stamps = [_timestamp(e.path) for e in entries]
+    try:
+        zone = _zone(info.get("timezone"))
+    except ValueError as e:
+        problems.append(str(e))
+        zone = None
+    stamps = [_timestamp(e.path, zone) for e in entries]                # (time, "exif" / "exif_zone_assumed" / "file")
     gps = next((g for g in (_gps(e.path) for e in entries) if g), None)
     lat, lon = info.get("latitude"), info.get("longitude")
     if (lat is None or lon is None) and gps:
@@ -103,16 +110,23 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     if lat is None or lon is None:
         problems.append("latitude/longitude of the camera are missing (required): give --latitude and --longitude "
                         "(or set them in CAMTRAPDP_INFO in main.py) and run again, or fill them in deployments.csv")
-    if any(s[1] for s in stamps):
-        log("Camtrap DP: %d photo(s) have no date in their EXIF data; used the file's modification time instead."
-            % sum(1 for s in stamps if s[1]))
+    assumed = sum(1 for _, source in stamps if source == "exif_zone_assumed")
+    from_file = sum(1 for _, source in stamps if source == "file")
+    if assumed:
+        log("Camtrap DP: %d photo(s) store no time zone; assumed %s (set timezone in CAMTRAPDP_INFO if the camera "
+            "clock was set to another zone)." % (assumed, info.get("timezone") or "this computer's time zone"))
+    if from_file:
+        log("Camtrap DP: %d photo(s) have no date in their EXIF data; used the file's modification time instead "
+            "(marked as a timestamp issue)." % from_file)
 
     media, observations, taxa, left_out = [], [], {}, 0
-    for n, (e, (stamp, _)) in enumerate(zip(entries, stamps), 1):
+    for n, (e, (stamp, source)) in enumerate(zip(entries, stamps), 1):
         media_id = "m%05d" % n
         media.append({"mediaID": media_id, "deploymentID": deployment, "captureMethod": info.get("capture_method"),
                       "timestamp": stamp, "filePath": Path(os.path.abspath(e.path)).as_uri(), "filePublic": False,
-                      "fileName": os.path.basename(e.path), "fileMediatype": _mediatype(e.path)})
+                      "fileName": os.path.basename(e.path), "fileMediatype": _mediatype(e.path),
+                      "mediaComments": TIME_NOTES.get(source, "").replace(
+                          "%s", info.get("timezone") or "the exporting computer's time zone")})
         kept = 0
         for d in e.detections:
             name, rank, comment, probability = _scientific(d, name_map)
@@ -140,9 +154,10 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     if left_out:
         log("Camtrap DP: %d detection(s) the classifier called vegetation (not an animal) are left out." % left_out)
 
-    times = sorted(s for s, _ in stamps)
+    times = sorted((s for s, _ in stamps), key=datetime.fromisoformat)    # by instant, not by text
     deployments = [{"deploymentID": deployment, "locationName": deployment, "latitude": lat, "longitude": lon,
                     "deploymentStart": times[0], "deploymentEnd": times[-1],
+                    "timestampIssues": True if from_file else None,
                     "deploymentComments": "Start / end are the first / last photo (the camera may have run longer)."}]
     _write_table(os.path.join(folder, "deployments.csv"), "deployments", deployments)
     _write_table(os.path.join(folder, "media.csv"), "media", media)
@@ -151,10 +166,20 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
     contributors = [{"title": "InsectAI model zoo", "path": REPO_URL, "role": "contributor"}]
     if info.get("contributor"):
         contributors.insert(0, {"title": info["contributor"], "role": "contact"})
+    licenses = [{"name": info[key], "scope": scope} for key, scope in (("data_license", "data"),
+                                                                      ("media_license", "media")) if info.get(key)]
+    # what GBIF needs on top of a valid package (its converter reads these; not required by Camtrap DP itself)
+    for missing, what in ((not info.get("contributor"), "contributor (your name or organisation, as contact)"),
+                          (not info.get("data_license"), "data_license (e.g. CC-BY-4.0 or CC0-1.0)")):
+        if missing:
+            log("Camtrap DP: to publish on GBIF, also set %s in CAMTRAPDP_INFO." % what)
     package = {
         "profile": CAMTRAP_DP + "camtrap-dp-profile.json",
         "name": _slug("insect-model-zoo-" + deployment), "id": str(uuid.uuid4()), "created": created,
         "title": info.get("project") or "Insect camera trap",
+        "description": "Insects detected%s automatically by the InsectAI model zoo (%s) in %d photo(s) from %s. "
+                       "Machine classifications, not checked by a person." % (
+                           " and classified" if classifier else "", by.split(": ", 1)[1], len(entries), deployment),
         "contributors": contributors,
         "sources": [{"title": "InsectAI model zoo", "path": REPO_URL}],
         "project": {"title": info.get("project") or "Insect camera trap",
@@ -163,12 +188,17 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
                     "samplingDesign": info.get("sampling_design") or "targeted",
                     "captureMethod": [info.get("capture_method") or "timeLapse"],
                     "individualAnimals": False, "observationLevel": ["media"]},
+        # GBIF's converter (camtrapdp::write_dwc / write_eml) uses event-level observations unless told otherwise;
+        # ours are all media-level, so without this GBIF would publish no occurrences
+        "gbifIngestion": {"observationLevel": "media"},
         "temporal": {"start": times[0][:10], "end": times[-1][:10]},
         "taxonomic": [dict(scientificName=n, **({"taxonRank": r} if r else {})) for n, r in sorted(taxa.items())],
         "resources": [{"name": t, "path": t + ".csv", "profile": "tabular-data-resource", "format": "csv",
                        "mediatype": "text/csv", "encoding": "utf-8", "schema": CAMTRAP_DP + t + "-table-schema.json"}
                       for t in ("deployments", "media", "observations")],
     }
+    if licenses:
+        package["licenses"] = licenses
     if lat is not None and lon is not None:
         package["spatial"] = {"type": "Point", "coordinates": [lon, lat]}
     with open(os.path.join(folder, "datapackage.json"), "w", encoding="utf-8") as f:
@@ -229,9 +259,30 @@ def _clip(v, low=0.0):
     return round(min(1.0, max(low, v)), 6)
 
 
-def _timestamp(path):
-    """(ISO 8601 time with UTC offset, fallback used): EXIF DateTimeOriginal (+ its offset if stored, else this
-    computer's time zone), else the file's modification time."""
+TIME_NOTES = {"exif_zone_assumed": "time zone not stored in the photo: assumed %s",
+              "file": "no EXIF date: time is the file's modification time"}
+
+
+def _zone(tz):
+    """None (this computer's zone), a fixed offset like '+02:00', or a zone name like 'Europe/Copenhagen'."""
+    if not tz:
+        return None
+    m = re.fullmatch(r"([+-])(\d{2}):?(\d{2})", str(tz).strip())
+    if m:
+        delta = timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
+        return timezone(delta if m.group(1) == "+" else -delta)
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(str(tz).strip())
+    except Exception:
+        raise ValueError("timezone = %r is not a UTC offset (e.g. '+02:00') or a known zone name (e.g. "
+                         "'Europe/Copenhagen'; on Windows zone names need: pip install tzdata)" % tz)
+
+
+def _timestamp(path, zone=None):
+    """(ISO 8601 time with UTC offset, source). source: 'exif' = EXIF DateTimeOriginal with its own offset;
+    'exif_zone_assumed' = EXIF date, offset from `zone` (else this computer's zone) because the photo stores none;
+    'file' = no EXIF date, the file's modification time."""
     try:
         from PIL import Image
         with Image.open(path) as im:
@@ -240,11 +291,14 @@ def _timestamp(path):
         if raw:
             t = datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
             if offset:
-                return datetime.fromisoformat(t.isoformat() + str(offset).strip()).isoformat(), False
-            return t.astimezone().isoformat(), False                # no offset stored: this computer's time zone
+                return datetime.fromisoformat(t.isoformat() + str(offset).strip()).isoformat(), "exif"
+            local = t.replace(tzinfo=zone) if zone is not None else t.astimezone()
+            return local.isoformat(), "exif_zone_assumed"
     except Exception:
         pass
-    return datetime.fromtimestamp(os.path.getmtime(path)).astimezone().replace(microsecond=0).isoformat(), True
+    t = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
+    return t.astimezone(zone).replace(microsecond=0).isoformat() if zone is not None else \
+        t.astimezone().replace(microsecond=0).isoformat(), "file"
 
 
 def _gps(path):

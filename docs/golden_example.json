@@ -6,7 +6,7 @@
   "image_height": 3040,
   "image_format": "JPEG",
   "image_sha256": "4be1c07d9f2a6e83b5d0a7c1f96e24d8a3b7c5e0f1d2a9b8c7e6f5a4b3c2d1e0",
-  "image_exif_orientation": 6,
+  "image_exif_orientation": 1,
   "bbox_format": "cxcywh_px",
   "angle_unit": "deg_ccw",
   "model_name": "insectdct-v8-m",
@@ -17,10 +17,7 @@
     "iou": 0.3,
     "prompt": "bee, hoverfly",
     "cls_threshold": 0.5,
-    "classes": [
-      "Bombus terrestris",
-      "Episyrphus balteatus"
-    ],
+    "classes": null,
     "bioclip_insect_taxa": true,
     "device": "cuda:0",
     "zoo_version": "f437fed"
@@ -96,20 +93,28 @@
       ],
       "polygon": [
         [
-          1210.2,
-          900.1
+          1406.5,
+          949.7
         ],
         [
-          1398.7,
-          861.5
+          1356.7,
+          1021.6
         ],
         [
-          1421.3,
-          1010.8
+          1260.9,
+          1031.3
         ],
         [
-          1236.4,
-          1061.9
+          1214.7,
+          969.1
+        ],
+        [
+          1264.5,
+          897.2
+        ],
+        [
+          1360.3,
+          887.5
         ]
       ],
       "extra_information": {

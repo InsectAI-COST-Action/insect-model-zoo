@@ -30,8 +30,8 @@ instances (detections or human annotations).
 | `prediction_timestamp` | ? iso-DT | time of the run (UTC) |
 | `prediction_config` | ? obj | the settings used: thresholds, IoU, prompt, names, device, zoo commit |
 | **Context metadata** | | |
-| `image_timestamp` | ? iso-DT | EXIF `DateTimeOriginal` + `OffsetTimeOriginal` (already read for Camtrap DP); left out if the photo has no date |
-| `latitude`, `longitude` | ? f | EXIF GPS (already read), else `--latitude` / `--longitude` |
+| `image_timestamp` | ? iso-DT | EXIF `DateTimeOriginal` with the photo's own `OffsetTimeOriginal`; if the photo stores no zone, the camera's zone from the settings (else this computer's), marked `exif_zone_assumed`; left out if the photo has no date (the file date goes to `extra_information`) |
+| `latitude`, `longitude` | ? f | `--latitude` / `--longitude` if given, else the photo's EXIF GPS (already read for Camtrap DP) |
 | `crs` | ? s\|i | `EPSG:4326` whenever a position is given (EXIF GPS is WGS 84) |
 | `tag_list` | ? [s] | *new* `--tags` option, optionally the Windows "Tags" EXIF field (XPKeywords); no XMP or OCR |
 | `group_name` | ? s | camera / site: folder name or `--deployment_id` (same as the Camtrap DP deployment) |
@@ -51,7 +51,8 @@ Not on the board. Needed for the zoo's own output, or to read the rest unambiguo
   `extra_information`.
 - **Per image:** `bbox_format` and `angle_unit` (what the four numbers and the angle mean), `image_sha256` (same photo =
   same hash), `image_exif_orientation`, `models` (detector *and* classifier, with weight checksums and licenses),
-  `prediction_runtime_s`, `image_timestamp_source` and `location_source` (how far to trust them),
+  `prediction_runtime_s`, `image_timestamp_source` (`exif` or `exif_zone_assumed`) and `location_source` (how far
+  to trust them),
   `coordinate_uncertainty_m`.
 
 ## Open decisions
@@ -84,7 +85,7 @@ The same example without comments, as valid JSON: [`golden_example.json`](golden
 
   # ----- NEW: needed to read the rest correctly -----
   "image_sha256": "4be1c07d9f2a6e83b5d0a7c1f96e24d8a3b7c5e0f1d2a9b8c7e6f5a4b3c2d1e0",   # NEW: same photo = same hash, even if renamed
-  "image_exif_orientation": 6,                # NEW: 6 = camera stored it sideways; boxes are for the upright image
+  "image_exif_orientation": 1,                # NEW: 1 = stored upright (6 = sideways); size and boxes are always for the upright image
   "bbox_format": "cxcywh_px",                 # NEW: board says [4f] but not which 4 -> centre x, centre y, width, height, pixels
   "angle_unit": "deg_ccw",                    # NEW: board has angle but no unit/direction -> degrees, counter-clockwise, 0 = upright
 
@@ -97,7 +98,7 @@ The same example without comments, as valid JSON: [`golden_example.json`](golden
     "iou": 0.3,
     "prompt": "bee, hoverfly",                # only text-prompt detectors (SAM 3) use it
     "cls_threshold": 0.5,
-    "classes": ["Bombus terrestris", "Episyrphus balteatus"],
+    "classes": null,                          # no own names: BioCLIP picked from its species table (taxon_options)
     "bioclip_insect_taxa": true,
     "device": "cuda:0",
     "zoo_version": "f437fed"
@@ -114,7 +115,7 @@ The same example without comments, as valid JSON: [`golden_example.json`](golden
 
   # ================= context metadata (board) =================
   "image_timestamp": "2026-07-14T10:32:05+02:00",
-  "image_timestamp_source": "exif",           # NEW: exif | file | user -> how far to trust the time
+  "image_timestamp_source": "exif",           # NEW: exif (own zone) | exif_zone_assumed (zone from settings); no EXIF date -> left out
   "latitude": 56.1629,
   "longitude": 10.2039,
   "crs": "EPSG:4326",                         # ⚠ "latitude/longitude" only fit a geographic CRS; a projected one (UTM) needs x/y -> fix it to EPSG:4326
@@ -142,7 +143,7 @@ The same example without comments, as valid JSON: [`golden_example.json`](golden
         {"name": "Apidae", "conf": 0.99, "rank": "family"},
         {"name": "Hymenoptera", "conf": 1.0, "rank": "order"}
       ],
-      "polygon": [[1210.2, 900.1], [1398.7, 861.5], [1421.3, 1010.8], [1236.4, 1061.9]],   # NEW: outline, segmentation models only (flat-bug, SAM 3)
+      "polygon": [[1406.5, 949.7], [1356.7, 1021.6], [1260.9, 1031.3], [1214.7, 969.1], [1264.5, 897.2], [1360.3, 887.5]],   # NEW: outline, segmentation models only (flat-bug, SAM 3)
       "extra_information": {"visiting_flower": true}   # NEW: per-instance free field (board has it only for the image)
     },
     {
