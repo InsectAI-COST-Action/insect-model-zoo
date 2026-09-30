@@ -323,6 +323,9 @@ TDWG standard for camera-trap data, read by GBIF, Agouti, camtraptor (R) and oth
   (`timeLapse` or `activityDetection`) and was placed (`targeted`, `opportunistic`, ...). The package is tested
   against the official Camtrap DP schemas.
 
+A draft of a shared *golden* JSON format (from the team's whiteboard; not produced yet) is in
+[docs/GOLDEN_FORMAT.md](docs/GOLDEN_FORMAT.md).
+
 ---
 
 ## Models
