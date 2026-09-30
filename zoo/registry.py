@@ -15,7 +15,7 @@ import difflib
 from dataclasses import dataclass, field
 
 MB = 1024 * 1024
-REPO_URL = "https://github.com/HugoMarkoff/Insect_model_zoo"
+REPO_URL = "https://github.com/InsectAI-COST-Action/insect-model-zoo"
 GATED_GUIDE_URL = REPO_URL + "/blob/main/docs/GATED_MODELS.md"    # how to get access + where to put the token
 
 

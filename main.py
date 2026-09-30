@@ -47,7 +47,7 @@ if sys.version_info < (3, 11):
 if os.name == "nt" and len(HERE) > 140:
     print("WARNING: this folder has a very long path (%d characters). Windows cannot load some libraries from deep "
           "paths (error 'The filename or extension is too long'). If that happens, move the folder somewhere short, "
-          "e.g. C:\\code\\Insect_model_zoo, and create the .venv again.\n" % len(HERE))
+          "e.g. C:\\code\\insect-model-zoo, and create the .venv again.\n" % len(HERE))
 
 sys.path.insert(0, HERE)
 from zoo import hardware, results                                                        # noqa: E402

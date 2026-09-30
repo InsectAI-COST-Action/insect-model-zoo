@@ -7,7 +7,7 @@
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-insectai--cost-FFD21E)](https://huggingface.co/insectai-cost)
 [![InsectAI](https://img.shields.io/badge/COST%20Action-CA22129%20InsectAI-2E7D32)](https://insectai.eu/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![tests](https://github.com/HugoMarkoff/Insect_model_zoo/actions/workflows/tests.yml/badge.svg)](https://github.com/HugoMarkoff/Insect_model_zoo/actions/workflows/tests.yml)
+[![tests](https://github.com/InsectAI-COST-Action/insect-model-zoo/actions/workflows/tests.yml/badge.svg)](https://github.com/InsectAI-COST-Action/insect-model-zoo/actions/workflows/tests.yml)
 
 <table>
   <tr>
@@ -81,7 +81,7 @@ python3 --version     # macOS / Linux  -> must say 3.11 or higher
 
 - **Windows**: if `python` opens the Microsoft Store or is "not recognized", Python is not on the PATH. Re-run the
   installer, choose *Modify*, and tick *Add Python to environment variables*.
-- **Windows**: keep the project in a **short folder that is not synced by OneDrive**, e.g. `C:\code\Insect_model_zoo`.
+- **Windows**: keep the project in a **short folder that is not synced by OneDrive**, e.g. `C:\code\insect-model-zoo`.
   Deep paths (like `OneDrive - ...\Desktop\...`) can break loading some libraries, and OneDrive would try to sync
   thousands of `.venv` files.
 - **macOS** does not come with a usable Python 3. Typing `python3` may offer the Xcode Command Line Tools, but their
@@ -103,8 +103,8 @@ clashes with other projects), installs everything and checks your hardware.
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
-cd Insect_model_zoo
+git clone https://github.com/InsectAI-COST-Action/insect-model-zoo.git
+cd insect-model-zoo
 python -m venv .venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # lets this window run the activate script
 .\.venv\Scripts\Activate.ps1
@@ -152,8 +152,8 @@ python main.py --check
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/HugoMarkoff/Insect_model_zoo.git
-cd Insect_model_zoo
+git clone https://github.com/InsectAI-COST-Action/insect-model-zoo.git
+cd insect-model-zoo
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -476,7 +476,7 @@ use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
 | `python` is not recognized / opens the Microsoft Store | Python is not on the PATH; see [Prerequisites](#prerequisites) |
 | `Activate.ps1 cannot be loaded because running scripts is disabled` | see the tip under [Installation](#installation) |
 | `error: externally-managed-environment` | the virtual environment is not active: activate `.venv` first |
-| `DLL load failed ... The filename or extension is too long` (Windows) | the folder path is too long: move the project to e.g. `C:\code\Insect_model_zoo`, delete `.venv` and create it again |
+| `DLL load failed ... The filename or extension is too long` (Windows) | the folder path is too long: move the project to e.g. `C:\code\insect-model-zoo`, delete `.venv` and create it again |
 | `ImportError: libGL.so.1` (Linux server / WSL) | `sudo apt install libgl1 libglib2.0-0` |
 | Runs on CPU although you have an NVIDIA GPU | `python main.py --check` tells you why; usually the CPU-only PyTorch, see [GPU](#getting-the-gpu-to-work) |
 | Download fails | check the internet connection or proxy; the error shows the URL and where to put a manually downloaded file |

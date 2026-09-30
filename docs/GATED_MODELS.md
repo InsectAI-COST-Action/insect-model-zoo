@@ -89,4 +89,4 @@ SAM 3 is big: with an NVIDIA GPU (6 GB free or more) an image takes a few second
 | `error 403` | the token works, but you have no access yet | wait for approval (step 2, check the *gated-repos* page), or edit the token and tick the gated-repos box (step 3) |
 | very slow / out of memory | SAM 3 is a large model | close other programs, or use a GPU; the zoo switches to CPU by itself if the GPU is too small |
 
-Still stuck? Open an issue: https://github.com/HugoMarkoff/Insect_model_zoo/issues
+Still stuck? Open an issue: https://github.com/InsectAI-COST-Action/insect-model-zoo/issues
