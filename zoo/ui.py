@@ -111,7 +111,7 @@ PAGE_JS = """() => {
         info.target = '_blank';
         info.rel = 'noopener';
         info.textContent = 'i';
-        info.dataset.tip = 'Learn more about this model in the InsectAI model database';
+        info.dataset.tip = 'Click to open in the Model Database';
         info.setAttribute('aria-label', info.dataset.tip);
         box.appendChild(info);
         box.classList.add('zoo-has-info');
