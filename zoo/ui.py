@@ -141,7 +141,11 @@ PAGE_JS = """() => {
       tile.querySelectorAll('.icon-button-wrapper').forEach(w => {  // gradio re-creates the buttons row
         if (!ov.contains(w)) ov.appendChild(w);                    // whenever an image loads, wherever it
       });                                                          // pleases: keep it in the stack, under
-    });                                                            // the icon, title and subtext
+      const im = tile.querySelector('.image-frame img');            // the icon, title and subtext. The image's
+      const ar = im && im.naturalWidth ?                            // aspect ratio tells ui.css how wide the
+          Math.round(im.naturalWidth / im.naturalHeight * 1000) / 1000 : 0;   // card may be (see there)
+      if ((+tile.style.getPropertyValue('--zoo-ar') || 0) !== ar) tile.style.setProperty('--zoo-ar', ar);
+    });
     const btn = document.getElementById('zoo-theme-btn');
     if (btn && !btn.dataset.zooTheme) {        // this script runs before Gradio renders the blocks, so
       btn.dataset.zooTheme = '1';              // the button is wired here, once it exists
