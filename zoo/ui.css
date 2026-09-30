@@ -9,7 +9,7 @@
    colour, would show behind the rounded list */
 .options {
   background: var(--zoo-page-bg) !important;
-  border: 1px solid var(--zoo-list-border) !important;
+  border: 1px solid var(--zoo-border) !important;
   border-radius: 16px !important;
   box-shadow: var(--zoo-list-shadow) !important;
 }
@@ -159,15 +159,135 @@ input[role="combobox"] {
   border: 1px solid var(--zoo-green-border) !important;
 }
 
-.upload-hint {
-  text-align: center;
-  margin: -2px 0 0;
-  color: var(--zoo-text-dim);
-  font-size: var(--zoo-font-hint);
+/* the two image tiles: no gradio label chip - the empty state is the centered overlay built by the page
+   script (icon, title, subtext). Gradio's own "drop image here" text and source buttons go */
+.zoo-image .upload-container .wrap,
+.zoo-image .source-selection,
+.zoo-image .empty {
+  display: none !important; /* gradio's own empty states: ours is the hover overlay */
 }
 
-.upload-hint strong {
-  color: var(--zoo-green-text);
+.zoo-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none; /* clicks and drags pass through to gradio's upload button underneath */
+  z-index: 2;
+}
+
+.zoo-overlay > svg {          /* only the big tile icon: the button icons further down */
+  width: 44px;                 /* keep the colour they get from their own button */
+  height: 44px;
+  color: var(--zoo-text-dim);
+}
+
+.zoo-overlay-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--zoo-text-dim);
+}
+
+.zoo-overlay-sub {
+  font-size: var(--zoo-font-hint);
+  color: var(--zoo-text-dim);
+}
+
+/* the two overlay states: an EMPTY tile shows its icon, title and description, plainly on the card;
+   a FILLED tile hides them until it is hovered - then they return over a tinted veil, white on top */
+.zoo-image .zoo-overlay {
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.zoo-image:not(:has(img)) .zoo-overlay {
+  opacity: 1;
+}
+
+.zoo-image:has(img):hover .zoo-overlay {
+  opacity: 1;
+  background: var(--zoo-veil);
+}
+
+.zoo-image:has(img):hover .zoo-overlay > svg,
+.zoo-image:has(img):hover .zoo-overlay-title,
+.zoo-image:has(img):hover .zoo-overlay-sub {
+  color: #ffffff;
+}
+
+/* the tiles' own buttons (clear, fullscreen, download): the page script moves their wrapper INTO the
+   overlay, right under the subtext - so they appear and disappear with it. Gradio paints the wrapper
+   itself as a white box: strip that. The overlay is pointer-transparent, so the buttons opt back in */
+.zoo-image .icon-button-wrapper {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: flex;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 !important;
+  pointer-events: auto;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.zoo-image .icon-button-wrapper button {
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, .85) !important;
+  color: var(--zoo-green-brand) !important; /* the ICON is green in the light theme, not the fill */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* the remove-image cross: red, in either theme */
+.zoo-image .icon-button-wrapper button[aria-label="Remove Image"],
+body.dark .zoo-image .icon-button-wrapper button[aria-label="Remove Image"] {
+  color: #dc2626 !important;
+}
+
+body.dark .zoo-image .icon-button-wrapper button {
+  background: rgba(29, 32, 35, .85) !important; /* the dark page keeps its dark squares, light icons */
+  color: #e5e7eb !important;
+}
+
+/* the two main cards (Detector, Classifier): their titles are headings, not chips. Gradio paints the
+   title span (svelte-jdcl7l, --block-title-*) as a tinted box - strip it down to a slightly bigger
+   text in the page's own colour, like the top bar title */
+.zoo-main span[data-testid="block-info"] {
+  display: block !important;
+  position: static !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 0 0 6px !important;
+  margin: 0 0 10px !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  color: var(--body-text-color) !important;
+}
+
+/* the run summary under the button: what used to be the result image's label */
+.zoo-result {
+  text-align: center;
+  font-size: var(--zoo-font-hint);
+  color: var(--zoo-text-dim);
+  padding: 0 8px !important;
 }
 
 /* the header: a compact top bar; the logos and the title, wrapping on a narrow page */
@@ -227,7 +347,7 @@ input[role="combobox"] {
   padding: 0 !important; /* Gradio's .gradio-style button rule pads every button */
   margin: 0;
   border-radius: 999px;
-  border: 1px solid var(--zoo-list-border);
+  border: 1px solid var(--zoo-border);
   box-shadow: none !important; /* Gradio shadows every button: an outline is enough here */
   background: transparent !important;
   color: var(--zoo-text-dim) !important;
@@ -281,6 +401,15 @@ body.dark .zoo-theme-btn svg * {
   font-weight: 600;
 }
 
+/* the run summary under the button: a line, not a padded card */
+.zoo-result {
+  padding: 0 8px !important;
+}
+
+.zoo-result p {
+  margin: 0 !important; /* the prose paragraph would add a paragraph of space around it */
+}
+
 /* the footer: the three logos, centred, stuck to the bottom of the window. The whole chain above it
    must stretch for that (Gradio's app container and .contain do not grow by themselves), and the
    footer block then takes the rest of the page as margin above it: the gap between the Detect button
@@ -306,7 +435,7 @@ main.contain > .column {
 }
 
 .main {
-  padding-bottom: 4px !important;
+  padding-bottom: 2px !important;
 }
 
 .zoo-footer {
@@ -314,7 +443,7 @@ main.contain > .column {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   column-gap: 44px;
-  padding: 10px 0 10px;
+  padding: 6px 0 6px;
   line-height: 0;
 }
 
@@ -344,7 +473,9 @@ main.contain > .column {
    footer at the bottom) never grows taller than the screen. The -55px makes room for the footer;
    side panels - vertical tabs, devtools - take width away, not height */
 .zoo-image {
-  height: clamp(200px, calc(38vh - 72px), 440px) !important;
+  height: clamp(200px, calc(38vh - 62px), 440px) !important;
+  padding: 8px !important; /* a thin frame around the image, not a card-wide one */
+  border-style: solid !important; /* Gradio dashes the image blocks: the tiles are plain cards */
   border-radius: 6px !important; /* the viewers keep a small radius: only the other cards round over */
 }
 

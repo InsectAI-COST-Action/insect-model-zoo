@@ -125,6 +125,23 @@ PAGE_JS = """() => {
     });
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
     fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
+    document.querySelectorAll('.zoo-image').forEach((tile, i) => {   // the two image tiles carry their own
+      let ov = tile.querySelector(':scope > .zoo-overlay');          // empty state: a centered icon, the
+      if (!ov) {                                                     // tile's title and a subtext - and the
+        ov = document.createElement('div');                         // tile's buttons (clear, download,
+        ov.className = 'zoo-overlay';                                 // fullscreen) sit in the same stack,
+        ov.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" '  // so they
+          + 'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+          + '<circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>'
+          + '<span class="zoo-overlay-title">' + (i ? 'Output' : 'Your image') + '</span>'
+          + '<span class="zoo-overlay-sub">' + (i ? 'Run the models to see their output here.'
+                                                  : 'Click or drag to import your own photo') + '</span>';
+        tile.appendChild(ov);
+      }
+      tile.querySelectorAll('.icon-button-wrapper').forEach(w => {  // gradio re-creates the buttons row
+        if (!ov.contains(w)) ov.appendChild(w);                    // whenever an image loads, wherever it
+      });                                                          // pleases: keep it in the stack, under
+    });                                                            // the icon, title and subtext
     const btn = document.getElementById('zoo-theme-btn');
     if (btn && !btn.dataset.zooTheme) {        // this script runs before Gradio renders the blocks, so
       btn.dataset.zooTheme = '1';              // the button is wired here, once it exists
@@ -300,19 +317,19 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         With no detector (det_name empty) the whole image is one box and only the classifier runs."""
         ready = gr.update(value=button_text(bool(det_name), bool(cls_name)), interactive=True)
         if not image_path:
-            yield gr.update(), ready
+            yield gr.update(), ready, gr.update()
             raise gr.Error("Add an image first.")
         card = get_model(det_name) if det_name else None
         cls = CLASSIFIERS.get(cls_name) if cls_name else None
         if card is None and cls is None:
-            yield gr.update(), ready
+            yield gr.update(), ready, gr.update()
             raise gr.Error("Pick a detector, or a classifier to run on the whole image.")
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
         problems = []
         if names and cls and cls.classes:
             names, problems = clean_latin_names(names)             # 'apis' -> 'Apis'
         if problems:
-            yield gr.update(), ready
+            yield gr.update(), ready, gr.update()
             raise gr.Error(" ".join(problems), title="Check the names")
         warnings, result = [], {}
         what = " + ".join([display_name(card) if card else "whole image"] + ([display_name(cls)] if cls else []))
@@ -352,19 +369,19 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         for c in (card, cls):
             if c is not None and not is_downloaded(c):
                 print("Downloading %s weights (%s) ..." % (c.name, size_text(download_size(c))))
-        yield gr.update(), gr.update(value=STARTING, interactive=False)    # at once, before any model loads
+        yield gr.update(), gr.update(value=STARTING, interactive=False), gr.update()  # before any model loads
         worker = threading.Thread(target=work, daemon=True)
         worker.start()
         shown = STARTING
         while worker.is_alive():
             if status["text"] != shown:
                 shown = status["text"]
-                yield gr.update(), gr.update(value=shown, interactive=False)
+                yield gr.update(), gr.update(value=shown, interactive=False), gr.update()
             worker.join(0.25)
 
         error = result.get("error")
         if error is not None:
-            yield gr.update(), ready
+            yield gr.update(), ready, gr.update()
             if isinstance(error, GatedModelError):
                 print()
                 print(error)
@@ -381,7 +398,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         else:                                                  # whole image: report the taxon, not a box count
             found = (dets[0].taxon or "no match") if dets else "no match"
         print("%s: %s, %.2fs on %s -> %s" % (what, found, secs, dev, os.path.dirname(files[0])))
-        yield gr.update(value=files[0], label="%s · %.1f s · %s" % (found, secs, dev)), ready
+        yield gr.update(value=files[0]), ready, \
+              gr.update(value="**%s** · %.1f s · %s" % (found, secs, dev), visible=True)
 
     first_group = group_of(first)
     first_cls_group = group_of(first_cls) if first_cls else NONE
@@ -392,41 +410,39 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         gr.HTML(header_html(), elem_classes="zoo-header-block")
         example = example_image if example_image and os.path.isfile(example_image) else None
         with gr.Row(equal_height=True):
-            with gr.Column():
-                image_in = gr.Image(type="filepath", elem_classes="zoo-image", label="Your image", sources=["upload", "clipboard"], height=440,
-                                    buttons=["fullscreen"], value=example)
-                gr.Markdown(("**Click the image or drag your own photo onto it** to analyse yours (this is just a "
-                             "sample)." if example else "**Click or drag a photo here** to get started."),
-                            elem_classes="upload-hint")
-            with gr.Column():
-                image_out = gr.Image(label="Result", elem_classes="zoo-image", interactive=False, height=440,
-                                     buttons=["download", "fullscreen"])
+            image_in = gr.Image(type="filepath", elem_classes="zoo-image", sources=["upload", "clipboard"],
+                                height=440, buttons=["clear", "fullscreen"], value=example, show_label=False)
+            image_out = gr.Image(elem_classes="zoo-image", interactive=False, height=440,
+                                 buttons=["download", "fullscreen"], show_label=False)
         with gr.Row():
-            with gr.Column(scale=3, min_width=220), gr.Group():          # one box: list + sizes
-                det_family = gr.Dropdown(family_choices(MODELS, none_label="whole image (classifier only)"),
-                                         value=first_group, label="Detector")
-                det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
-                                     visible=len(groups(MODELS)[first_group]) > 1)
-            with gr.Column(scale=3, min_width=220), gr.Group():
-                cls_family = gr.Dropdown(family_choices(CLASSIFIERS, none_label="none"), value=first_cls_group,
-                                         label="Classifier")
-                cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
-                                     value=first_cls.name if first_cls else None, show_label=False,
-                                     visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
-            with gr.Column(scale=3, min_width=220):
+            with gr.Column(scale=3, min_width=220):          # detection: the models, and what to look for
+                with gr.Group():
+                    det_family = gr.Dropdown(family_choices(MODELS, none_label="whole image (classifier only)"),
+                                             value=first_group, label="Detector", elem_classes="zoo-main")
+                    det_sizes = gr.Radio(version_choices(first_group, MODELS), value=first.name, show_label=False,
+                                         visible=len(groups(MODELS)[first_group]) > 1)
                 thr = gr.Slider(0.01, 0.99, step=0.01, label="Detection confidence", elem_classes="zoo-slider",
                                 value=threshold if threshold is not None else first.default_threshold,
                                 info="Boxes below this are dropped")
+                text = gr.Textbox(label="Text prompt", value=prompt or "", max_lines=1,
+                                  interactive=first.text_prompt, placeholder=placeholder(first))
+            with gr.Column(scale=3, min_width=220):          # classification: the models, and their names
+                with gr.Group():
+                    cls_family = gr.Dropdown(family_choices(CLASSIFIERS, none_label="none"), value=first_cls_group,
+                                             label="Classifier", elem_classes="zoo-main")
+                    cls_sizes = gr.Radio(version_choices(first_cls_group, CLASSIFIERS) if first_cls else [],
+                                         value=first_cls.name if first_cls else None, show_label=False,
+                                         visible=bool(first_cls) and len(groups(CLASSIFIERS)[first_cls_group]) > 1)
                 first_slider = cls_slider(first_cls)
                 cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
                                     value=first_slider["value"], info=first_slider["info"], visible=bool(first_cls))
+                classes_box = gr.Textbox(label="Class names", value=classes or "", max_lines=1,
+                                         placeholder=CLASSES_HINT % bioclip_empty_text(),
+                                         visible=bool(first_cls and first_cls.classes))
+            with gr.Column(scale=3, min_width=220):          # the run, and what came out of it
+                run_btn = gr.Button(button_text(first_group != NONE, first_cls_group != NONE), variant="primary")
+                result_info = gr.Markdown(visible=False, elem_classes="zoo-result")
         gated_md = gr.Markdown(visible=False)
-        text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
-                          placeholder=placeholder(first))
-        classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1,
-                                 placeholder=CLASSES_HINT % bioclip_empty_text(),
-                                 visible=bool(first_cls and first_cls.classes))
-        run_btn = gr.Button(button_text(first_group != NONE, first_cls_group != NONE), variant="primary")
         gr.HTML(footer_html(), elem_classes="zoo-footer-block")
 
         det_family.change(on_det_family, [det_family, cls_family],
@@ -435,9 +451,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         cls_family.change(on_cls_family, [cls_family, det_family],
                           [cls_sizes, classes_box, gated_md, cls_thr, run_btn])
         inputs = [det_sizes, cls_sizes, thr, cls_thr, text, classes_box, image_in]
-        run_btn.click(run, inputs, [image_out, run_btn], show_progress="hidden")
-        text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
-        classes_box.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
+        run_btn.click(run, inputs, [image_out, run_btn, result_info], show_progress="hidden")
+        text.submit(run, inputs, [image_out, run_btn, result_info], show_progress="hidden")
+        classes_box.submit(run, inputs, [image_out, run_btn, result_info], show_progress="hidden")
         demo.load(lambda d, c: gated_note(None if d == NONE else group_default(d, MODELS), cls_of(c)),
                   [det_family, cls_family], gated_md)
         demo.load(hardware_notes)

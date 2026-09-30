@@ -12,7 +12,7 @@
   /* shades of the page: the cards are a touch DARKER than the page, with the same warmth (model-db
      --surface-2), so they stand out from the background */
   --zoo-page-bg: #f9f9f5; /* cards, the open model list, the rim of the slider handle */
-  --zoo-list-border: #dcdcd4; /* the border of the open model list */
+  --zoo-border: #dcdcd4; /* the one border colour: cards, inputs, the open model list */
   --zoo-list-shadow: 0 12px 28px rgba(20, 20, 17, .12);
   --zoo-divider: #e6e6de; /* the line between two models in the list */
   --zoo-text-dim: #5c5c55; /* the upload hint */
@@ -25,21 +25,23 @@
   --zoo-green-border: #b9d4c3;
   --zoo-green-bar: #2f6f4e; /* the bar on the left of the selected row */
   --zoo-handle-shadow: 0 1px 4px rgba(20, 20, 17, .35);
+  --zoo-veil: rgba(20, 20, 17, .72); /* the hover veil over a filled image tile: the palette's warm dark */
   --zoo-green-brand: #2fb44a; /* the green disc of the InsectAI icon: the title's "InsectAI" matches it */
 
   /* Gradio's own colours, so its blocks, inputs and the Detect button follow the same palette */
-  --body-background-fill: #fdfdfb;
-  --background-fill-primary: #fdfdfb;
+  --background-fill-primary: #fdfdfb; /* the page colour (Gradio's own body colour follows it below) */
+  --layout-gap: 12px; /* the room between cards: 16 is roomy, 12 keeps the page in one screen */
   --background-fill-secondary: #f4f4f0;
   --block-background-fill: #f8f8f4;
   --block-radius: 16px; /* all cards rounder, except the image viewers (pinned in ui.css) */
   --block-border-width: 1px; /* Soft leaves its cards borderless: a thin one, like the model lists */
-  --block-border-color: #dcdcd4;
-  --border-color-primary: #dcdcd4;
+  --block-border-color: var(--zoo-border);
+  --border-color-primary: var(--zoo-border);
+  --body-background-fill: var(--background-fill-primary); /* Gradio reads this one for the body */
   --body-text-color: #1a1a17;
   --body-text-color-subdued: #5c5c55;
   --input-background-fill: #ffffff;
-  --input-border-color: #dcdcd4;
+  --input-border-color: var(--zoo-border);
   --input-radius: 12px; /* the closed model field and the text inputs, rounder like the cards */
   /* the Detect button: the same green as the logo disc and the title's "InsectAI" */
   --button-primary-background-fill: #2fb44a;
@@ -54,7 +56,7 @@ body.dark,
 :root.dark,
 :root .dark {
   --zoo-page-bg: #1f2227; /* cards: slightly lighter than the page */
-  --zoo-list-border: #34383f;
+  --zoo-border: #23272c;
   --zoo-list-shadow: 0 12px 28px rgba(0, 0, 0, .5);
   --zoo-divider: #2a2e34;
   --zoo-text-dim: #b0b0a8;
@@ -65,19 +67,21 @@ body.dark,
   --zoo-green-bg-soft: #22322a;
   --zoo-green-border: #3a5a48;
   --zoo-handle-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+  --zoo-veil: rgba(5, 6, 8, .8);
 
-  --body-background-fill: #16171a;
   --background-fill-primary: #16171a;
+  --layout-gap: 12px;
   --background-fill-secondary: #24272c;
   --block-background-fill: #141517;
   --block-radius: 16px;
   --block-border-width: 1px;
-  --block-border-color: #34383f;
-  --border-color-primary: #34383f;
+  --block-border-color: var(--zoo-border);
+  --border-color-primary: var(--zoo-border);
+  --body-background-fill: var(--background-fill-primary);
   --body-text-color: #e9e9e4;
   --body-text-color-subdued: #b0b0a8;
   --input-background-fill: #24272c;
-  --input-border-color: #34383f;
+  --input-border-color: var(--zoo-border);
   --input-radius: 12px;
   --button-primary-background-fill: #2fb44a;
   --button-primary-background-fill-hover: #29a042;
