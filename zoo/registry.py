@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 MB = 1024 * 1024
 REPO_URL = "https://github.com/InsectAI-COST-Action/insect-model-zoo"
 GATED_GUIDE_URL = REPO_URL + "/blob/main/docs/GATED_MODELS.md"    # how to get access + where to put the token
+MODEL_DB = "https://insectai-cost-action.github.io/model-db/"                 # InsectAI model database
+BENCHMARK_DB = "https://insectai-cost-action.github.io/benchmark-dataset-db/"  # InsectAI benchmark database
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class ModelCard:
     group: str = ""            # model family shown once in the UI list, e.g. "flat-bug" ("" = the name itself)
     variant: str = ""          # size / version within the family, e.g. "M" (shown when the family is picked)
     gated: str = ""            # Hugging Face page where access must be requested (needs HF_TOKEN); "" = open download
+    model_db: str = ""         # its page in the InsectAI model database (MODEL_DB/models/<page>/); "" = none yet
+    datasets: tuple = ()       # (page, title) of its datasets in the InsectAI benchmark database (BENCHMARK_DB)
     species_table: tuple = ()  # zero-shot classifiers: WeightFiles of pre-computed text features for every taxon the
                                # model knows (used when you give no names); downloaded next to the weights
 
@@ -79,6 +83,7 @@ _INSECTDCT_PAPER = dict(
     doi="10.64898/2026.07.07.736939",
     license="GPL-3.0",
     extra_links={"Dataset (V6, Zenodo)": "https://zenodo.org/records/21154490"},
+    model_db="insectdct",                 # detector and classifier share one page
 )
 _INSECTDCT = dict(family="insectdct", task="detection", default_iou=0.3, label="insect", group="insectDCT v8",
                   default_classifier="insectdct-cls-v7", **_INSECTDCT_PAPER)
@@ -115,6 +120,7 @@ _FLATBUG = dict(
     doi="10.1111/2041-210x.70249",
     license="MIT",
     extra_links={"Docs": "https://darsa.info/flat-bug/", "Dataset (Zenodo)": "https://doi.org/10.5281/zenodo.14761446"},
+    model_db="flatbug", datasets=(("flatbug-dataset", "flat-bug dataset"),),
 )
 
 for _size, _nbytes, _sha, _ram, _vram in [
@@ -154,7 +160,7 @@ _add(name="sam3", family="sam3", group="SAM 3", title="SAM 3 (Meta), finds what 
      description="Foundation model from Meta: type what to look for (e.g. 'bee', or 'bee, butterfly') and it outlines "
                  "every match. Not trained on insects specifically. Large (3.2 GB); a GPU is strongly recommended.",
      extra_links={"Hugging Face": "https://huggingface.co/facebook/sam3"},
-     text_prompt=True, default_prompt="insect", gated="https://huggingface.co/facebook/sam3")
+     text_prompt=True, default_prompt="insect", gated="https://huggingface.co/facebook/sam3", model_db="sam3")
 
 # =========================================================================== CLASSIFIERS
 # --------------------------------------------------------------------------- insectDCT hierarchical classifier
@@ -282,7 +288,7 @@ _add(name="bioclip-2", title="BioCLIP 2 (zero-shot, any names)", architecture="V
                         91586174, "4648928b006f85d83d28e5a27074ca9363465d82e778d708b369c5eaf54b8ef5"),
      min_ram_gb=5, min_vram_gb=2.5,
      description="Smaller, faster BioCLIP (half the size of 2.5) with the same way of working.",
-     extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2"},
+     extra_links={"Hugging Face": "https://huggingface.co/imageomics/bioclip-2"}, model_db="bioclip-2",
      **_BIOCLIP)
 
 
@@ -356,17 +362,29 @@ def models_table():
 
     access = lambda c: "GATED *" if c.gated else "open"                                   # noqa: E731
     tag_text = lambda c: ", ".join(t for t in tags(c) if t != "gated")                   # noqa: E731
-    det = [("DETECTOR (-m)", "TAGS", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS", "DEFAULT CLASSIFIER")]
+    det = [("DETECTOR (-m)", "TAGS", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS", "DEFAULT CLASSIFIER", "MODEL DB")]
     det += [(c.name, tag_text(c), c.architecture, size_text(download_size(c)), c.license, access(c),
-             c.default_classifier or "-") for c in MODELS.values()]
-    cls = [("CLASSIFIER (-c)", "TAGS", "CLASSES", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS")]
-    cls += [(c.name, tag_text(c), c.task, c.architecture, size_text(download_size(c)), c.license, access(c))
-            for c in CLASSIFIERS.values()]
+             c.default_classifier or "-", c.model_db or "-") for c in MODELS.values()]
+    cls = [("CLASSIFIER (-c)", "TAGS", "CLASSES", "ARCHITECTURE", "WEIGHTS", "LICENSE", "ACCESS", "MODEL DB")]
+    cls += [(c.name, tag_text(c), c.task, c.architecture, size_text(download_size(c)), c.license, access(c),
+             c.model_db or "-") for c in CLASSIFIERS.values()]
     text = table(det) + "\n\n" + table(cls)
+    text += ("\n\n  MODEL DB = the model's page in the InsectAI model database: %smodels/<page>/"
+             "\n  Datasets to test models on: the InsectAI benchmark database, %s" % (MODEL_DB, BENCHMARK_DB))
     if any(c.gated for c in list(MODELS.values()) + list(CLASSIFIERS.values())):
         text += "\n\n  * GATED = free, but you must request access and add a Hugging Face token first.\n" \
                 "    How to (5 minutes): " + GATED_GUIDE_URL
     return text
+
+
+def model_db_url(card):
+    """The model's page in the InsectAI model database, or "" if it has none (yet)."""
+    return MODEL_DB + "models/%s/" % card.model_db if card is not None and card.model_db else ""
+
+
+def dataset_links(card):
+    """[(title, url)] of the model's datasets in the InsectAI benchmark database."""
+    return [(title, BENCHMARK_DB + "datasets/%s/" % page) for page, title in (card.datasets if card else ())]
 
 
 def download_size(card):

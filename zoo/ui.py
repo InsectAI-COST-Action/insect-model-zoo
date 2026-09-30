@@ -10,7 +10,8 @@ import threading
 from collections import Counter
 
 from .engine import Zoo
-from .registry import (CLASSIFIERS, GATED_GUIDE_URL, MODELS, SPECIES_TABLE_SURE, bioclip_empty_text,
+from .registry import (BENCHMARK_DB, CLASSIFIERS, GATED_GUIDE_URL, MODEL_DB, MODELS, SPECIES_TABLE_SURE,
+                       bioclip_empty_text, dataset_links, model_db_url,
                        get_classifier, get_model,
                        display_name, download_size, group_default, group_of, groups, clean_latin_names,
                        size_text, tags)
@@ -67,6 +68,7 @@ li[role=option]:has(> .zoo-pills), .secondary-wrap:has(> .zoo-pills) {
 .zoo-slider input[type="number"] {          /* the live value: a rounded green chip */
   font-weight: 700; color: #15803d; text-align: center; border-radius: 999px !important;
   background: #f0fdf4 !important; border: 1px solid #86efac !important; }
+.db-links { font-size: .85rem; color: #64748b; }
 .upload-hint { text-align: center; margin: -2px 0 0; color: #64748b; font-size: .85rem; }
 .upload-hint strong { color: #15803d; }
 """
@@ -157,12 +159,17 @@ def header_html():
 <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
   <div style="display:flex; align-items:center; gap:14px">
     <a href="https://insectai.eu/" target="_blank"><img src="{insectai}" alt="InsectAI" style="height:56px"></a>
-    <span style="font-size:1.35rem; font-weight:600">Model zoo</span>
+    <div style="display:flex; flex-direction:column; gap:2px">
+      <span style="font-size:1.35rem; font-weight:600">Model zoo</span>
+      <span style="font-size:.85rem">
+        <a href="{model_db}" target="_blank">Model database</a> &middot;
+        <a href="{bench_db}" target="_blank">Benchmark database</a></span>
+    </div>
   </div>
   <a href="https://www.cost.eu/actions/CA22129/" target="_blank"
      style="background:#fff; border-radius:8px; padding:4px 10px; line-height:0">
     <img src="{cost}" alt="COST - Funded by the European Union" style="height:36px"></a>
-</div>""".format(insectai=insectai, cost=cost)
+</div>""".format(insectai=insectai, cost=cost, model_db=MODEL_DB, bench_db=BENCHMARK_DB)
 
 
 def family_choices(table, none_label=None):
@@ -211,6 +218,22 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
             return gr.update(value=SPECIES_TABLE_SURE, info="Lower = more specific (species), higher = surer "
                                                             "(genus, family, order)", **kw)
         return gr.update(value=0.0, info="Names below this show as 'Unsure'", **kw)
+
+    def db_links(det_group, cls_group):
+        """The selected models' pages in the InsectAI model database, and their datasets in the benchmark database."""
+        pages = {}
+        for card in (None if det_group == NONE else group_default(det_group, MODELS), cls_of(cls_group)):
+            if card is not None and model_db_url(card):
+                pages.setdefault(model_db_url(card), []).append(group_of(card))
+        datasets = [link for g in (det_group,) if g != NONE for link in dataset_links(group_default(g, MODELS))]
+        text = ""
+        if pages:
+            text = "📖 [Model database](%s): " % MODEL_DB + " · ".join(
+                "[%s](%s)" % (" / ".join(names), url) for url, names in pages.items())
+        if datasets:
+            text += "  ·  📊 [Benchmark database](%s): " % BENCHMARK_DB + " · ".join(
+                "[%s](%s)" % link for link in datasets)
+        return gr.update(value=text, visible=bool(text))
 
     def sizes(group, table, card):
         return gr.update(choices=version_choices(group, table), value=card.name, visible=len(groups(table)[group]) > 1)
@@ -370,6 +393,7 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 cls_thr = gr.Slider(0.0, 0.99, step=0.01, label="Classification confidence", elem_classes="zoo-slider",
                                     value=first_slider["value"], info=first_slider["info"], visible=bool(first_cls))
         gated_md = gr.Markdown(visible=False)
+        db_md = gr.Markdown(visible=False, elem_classes="db-links")
         text = gr.Textbox(show_label=False, value=prompt or "", max_lines=1, interactive=first.text_prompt,
                           placeholder=placeholder(first))
         classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1,
@@ -387,6 +411,8 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         demo.load(lambda d, c: gated_note(None if d == NONE else group_default(d, MODELS), cls_of(c)),
                   [det_family, cls_family], gated_md)
         demo.load(hardware_notes)
+        for event in (det_family.change, cls_family.change, demo.load):
+            event(db_links, [det_family, cls_family], db_md)
     return demo
 
 

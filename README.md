@@ -4,7 +4,8 @@
 
 **Ready-to-run AI models that find insects in images and say what they are: one install, one command, or a small UI.**
 
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-insectai--cost-FFD21E)](https://huggingface.co/insectai-cost)
+[![Model database](https://img.shields.io/badge/InsectAI-Model%20database-F59E0B)](https://insectai-cost-action.github.io/model-db/)
+[![Benchmark database](https://img.shields.io/badge/InsectAI-Benchmark%20database-0EA5E9)](https://insectai-cost-action.github.io/benchmark-dataset-db/)
 [![InsectAI](https://img.shields.io/badge/COST%20Action-CA22129%20InsectAI-2E7D32)](https://insectai.eu/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![tests](https://github.com/InsectAI-COST-Action/insect-model-zoo/actions/workflows/tests.yml/badge.svg)](https://github.com/InsectAI-COST-Action/insect-model-zoo/actions/workflows/tests.yml)
@@ -12,11 +13,18 @@
 <table>
   <tr>
     <td align="center" width="260">
-      <a href="https://huggingface.co/insectai-cost">
-        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" width="56" alt="Hugging Face"><br>
-        <b>InsectAI on Hugging Face</b>
+      <a href="https://insectai-cost-action.github.io/model-db/">
+        <img src="https://insectai-cost-action.github.io/model-db/icon.svg" width="56" alt="Model database"><br>
+        <b>Model database</b>
       </a><br>
-      <sub>huggingface.co/insectai-cost</sub>
+      <sub>every insect model, with its paper, licence and weights</sub>
+    </td>
+    <td align="center" width="260">
+      <a href="https://insectai-cost-action.github.io/benchmark-dataset-db/">
+        <img src="https://insectai-cost-action.github.io/benchmark-dataset-db/icon.svg" width="56" alt="Benchmark database"><br>
+        <b>Benchmark database</b>
+      </a><br>
+      <sub>datasets to test and compare models on</sub>
     </td>
   </tr>
 </table>
@@ -42,6 +50,10 @@ It works in two steps, and you can combine any two models:
 |---|---|---|
 | **Detector** | finds the insects (box, sometimes an outline) | insectDCT v8, flat-bug, SAM 3 |
 | **Classifier** *(optional)* | says what each insect is (species / family / order + score) | insectDCT classifier V7, BioCLIP 2.5, BioCLIP 2 |
+
+The zoo builds on the InsectAI COST Action's two shared databases: the [**model database**](https://insectai-cost-action.github.io/model-db/) (the models for
+insect detection, classification and traits, each with its paper, licence and weights; every model in the zoo links to
+its page there) and the [**benchmark database**](https://insectai-cost-action.github.io/benchmark-dataset-db/) (datasets to test and compare models on).
 
 Detectors that come with their own classifier use it by default (insectDCT detector → insectDCT classifier), but any
 detector works with any classifier, e.g. flat-bug + BioCLIP 2.5, or SAM 3 + insectDCT classifier.
@@ -378,6 +390,7 @@ It is the detection stage of the InsectDCT pipeline for detection, hierarchical 
 "v8" is the newest detector, trained on detection dataset version 8.
 `-m` is the most accurate (upstream best-F1 confidence 0.407); `-s` is made for edge devices such as a Raspberry Pi.
 
+- **Model database:** [insectdct](https://insectai-cost-action.github.io/model-db/models/insectdct/)
 - **Authors:** Kim Bjerge, Simon F. A. Wogram, Pau Enric Serra-Marin, Otar Sakhiashvili, Toke T. Høye
 - **Paper:** *InsectDCT: A generalized pipeline for detection, taxonomic classification, and tracking of insects in
   camera-trap recordings* (2026), bioRxiv. DOI [10.64898/2026.07.07.736939](https://doi.org/10.64898/2026.07.07.736939)
@@ -394,6 +407,7 @@ into tiles at several scales (a "pyramid") and the results merged. Tuned especia
 (hence "flat"). Sizes N/S/M/L are the YOLOv8 models from the paper; `flatbug-m-v2` is the newer YOLO26 model that is
 the default since flat-bug 1.2.
 
+- **Model database:** [flatbug](https://insectai-cost-action.github.io/model-db/models/flatbug/) · training data in the [benchmark database](https://insectai-cost-action.github.io/benchmark-dataset-db/datasets/flatbug-dataset/)
 - **Authors:** Asger Svenning, Guillaume Mougeot, Jamie Alison, Daphne Chevalier, Nisa Chavez Molina, Song-Quan Ong,
   Kim Bjerge, Juli Carrillo, Toke T. Høye, Quentin Geissmann
 - **Paper:** *A general method for detection and segmentation of terrestrial arthropods in images* (2026), Methods in
@@ -412,6 +426,7 @@ Meta's *Segment Anything Model 3* finds and outlines **whatever you describe in 
 foundation model, not trained on insects specifically, so it is great for exploring and for classes no other model
 covers. Large (3.2 GB): a GPU with 6 GB+ gives a few seconds per image; on CPU it works, at about 40 s per image.
 
+- **Model database:** [sam3](https://insectai-cost-action.github.io/model-db/models/sam3/)
 - **Access:** 🔒 gated on Hugging Face. Request access and add your token once: **[step-by-step guide](docs/GATED_MODELS.md)**
 - **Paper:** Carion, N., Gustafson, L., Hu, Y.-T., et al. (2025). *SAM 3: Segment Anything with Concepts*.
   arXiv:2511.16719. DOI [10.48550/arXiv.2511.16719](https://doi.org/10.48550/arXiv.2511.16719)
@@ -428,6 +443,7 @@ otherwise the result is `Unsure`. 104 taxa at the deepest level
 ([list](https://github.com/kimbjerge/insectDCT/blob/main/hierarchicalB3L/datasetV7.txt)), trained on camera-trap crops
 of flower visitors. `taxon_score` is the model's probability for that taxon at that level.
 
+- **Model database:** [insectdct](https://insectai-cost-action.github.io/model-db/models/insectdct/)
 - **Paper, authors, license:** as the insectDCT detector above (GPL-3.0)
 - **Weights:** `HierarchicalClassifierV7` (ConvNeXt-Base) from the Google Drive link in the upstream README, plus the
   upstream classifier code (`common/*.py`) pinned to commit `e459ae8`, both downloaded on first use
@@ -470,6 +486,7 @@ downloaded with the model (2.7 GB for BioCLIP 2, 3.3 GB for BioCLIP 2.5) and tur
 > alone (e.g. `Apis`) still gets a real score instead of always 1.00, and a detection that fits none of your names
 > gets the closest order instead of being forced into one of your names.
 
+- **Model database:** [bioclip-2](https://insectai-cost-action.github.io/model-db/models/bioclip-2/) (BioCLIP 2.5 has no page yet)
 - **Paper:** Gu, Stevens, Campolongo et al. (2025). *BioCLIP 2: Emergent Properties from Scaling Hierarchical
   Contrastive Learning*. DOI [10.48550/arXiv.2505.23883](https://doi.org/10.48550/arXiv.2505.23883)
   (BioCLIP 2.5 Huge: see its [model card](https://huggingface.co/imageomics/bioclip-2.5-vith14))
@@ -500,7 +517,7 @@ Weights are **not stored in this repository**. The files stay with the original 
 
 Delete `weights/<model>/` to download a model again. To keep weights somewhere else (e.g. a shared drive), set the
 environment variable `INSECT_ZOO_WEIGHTS=/path/to/folder`. Each model can have several URLs that are tried in order,
-so a mirror on [Hugging Face](https://huggingface.co/insectai-cost) can be added later without changing anything else.
+so a mirror can be added later without changing anything else.
 
 ---
 
@@ -577,6 +594,9 @@ use it. Other versions: [pytorch.org](https://pytorch.org/get-started/locally/).
    - a classifier: class `Classifier(card, weights_path, device)` with `classify(image_rgb, detections, classes=None)`
      that sets `taxon`, `taxon_score` (and `taxon_rank`) on each detection.
 3. Add any new packages to `requirements.txt` and a row to the [Models](#models) tables.
+   If the model has a page in the [InsectAI model database](https://insectai-cost-action.github.io/model-db/), set `model_db="<page>"` (and its datasets in the
+   [benchmark database](https://insectai-cost-action.github.io/benchmark-dataset-db/) as `datasets=(("<page>", "<title>"),)`): the UI, `--list_models` and the exports link
+   to them. A model that is not in the model database yet is best added there too.
 4. Test: `python main.py -m <detector> -c <classifier> -d cpu`, and again on GPU without `-d cpu`.
 
 Suggestions and pull requests are welcome, especially from InsectAI members with models to share.

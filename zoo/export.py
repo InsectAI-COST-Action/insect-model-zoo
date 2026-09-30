@@ -12,7 +12,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .registry import REPO_URL
+from .registry import CLASSIFIERS, MODELS, REPO_URL, model_db_url
 
 CAMTRAP_DP = "https://raw.githubusercontent.com/tdwg/camtrap-dp/1.0.2/"
 DETECTOR_LABEL_TAXA = {"insect": ("Insecta", "class"), "arthropod": ("Arthropoda", "phylum")}   # no classifier
@@ -56,7 +56,8 @@ def coco(entries, detector, classifier=""):
                 ann["area"] = round(_polygon_area(d.polygon), 2)
             annotations.append(ann)
     return {"info": {"description": "Predictions of the InsectAI model zoo", "url": REPO_URL,
-                     "date_created": _now(), "detector": detector, "classifier": classifier},
+                     "date_created": _now(), "detector": detector, "classifier": classifier,
+                     "model_db": _model_db_pages(detector, classifier)},
             "licenses": [], "images": images, "annotations": annotations,
             "categories": [{"id": ids[n], "name": n, "supercategory": ""} for n in names]}
 
@@ -65,6 +66,12 @@ def write_coco(path, entries, detector, classifier=""):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(coco(entries, detector, classifier), f, indent=1)
     return path
+
+
+def _model_db_pages(detector, classifier):
+    """{model name: its page in the InsectAI model database} for the models that made the results."""
+    cards = [MODELS.get(detector), CLASSIFIERS.get(classifier)]
+    return {c.name: model_db_url(c) for c in cards if c is not None and model_db_url(c)}
 
 
 def _polygon_area(poly):
@@ -181,7 +188,9 @@ def write_camtrapdp(folder, entries, detector, classifier="", info=None, name_ma
                        "Machine classifications, not checked by a person." % (
                            " and classified" if classifier else "", by.split(": ", 1)[1], len(entries), deployment),
         "contributors": contributors,
-        "sources": [{"title": "InsectAI model zoo", "path": REPO_URL}],
+        "sources": [{"title": "InsectAI model zoo", "path": REPO_URL}] + [
+            {"title": "%s in the InsectAI model database" % name, "path": url}
+            for name, url in _model_db_pages(detector, classifier).items()],
         "project": {"title": info.get("project") or "Insect camera trap",
                     "description": "Detections by %s%s, made with the InsectAI model zoo." % (
                         detector, ", classified by " + classifier if classifier else ""),
