@@ -1,44 +1,87 @@
 /* The theme of the model-zoo page: every colour and font size in one place, as CSS variables. ui.css (the
    layout and shapes) reads them, so a value changed here moves the whole page. The page starts light
    (the script in ui.py takes Gradio's "dark" body class off); the moon button in the top bar adds it,
-   and body.dark below swaps the palette for Gradio's dark one. */
+   and the .dark block below swaps the palette. The colours come from the model-db website
+   (assets/css/zoo.css there): a soft off-white page with calm greens, a near-black dark theme. */
 :root {
   /* font sizes */
   --zoo-font-pill: .72rem; /* the tag pills next to the model names */
   --zoo-font-hint: .85rem; /* the hint under the image */
   --zoo-font-title: 1.3rem; /* the "InsectAI Model Zoo" title in the top bar */
 
-  /* shades of the page */
-  --zoo-page-bg: #fff; /* the open model list, the footer tiles, the rim of the slider handle */
-  --zoo-list-border: #e2e8f0; /* the border of the open model list */
-  --zoo-list-shadow: 0 12px 28px rgba(15, 23, 42, .12);
-  --zoo-divider: #e8edf3; /* the line between two models in the list */
-  --zoo-text-dim: #64748b; /* the upload hint */
+  /* shades of the page: the cards are a touch DARKER than the page, with the same warmth (model-db
+     --surface-2), so they stand out from the background */
+  --zoo-page-bg: #f9f9f5; /* cards, the open model list, the rim of the slider handle */
+  --zoo-list-border: #dcdcd4; /* the border of the open model list */
+  --zoo-list-shadow: 0 12px 28px rgba(20, 20, 17, .12);
+  --zoo-divider: #e6e6de; /* the line between two models in the list */
+  --zoo-text-dim: #5c5c55; /* the upload hint */
 
-  /* the green accent (Gradio's own theme is green too) */
-  --zoo-green-text: #15803d; /* emphasised text, the detector pill, the live slider value */
-  --zoo-green-handle: #16a34a; /* the slider handle */
-  --zoo-green-bg: #dcfce7; /* the selected row, the detector pill */
-  --zoo-green-bg-soft: #f0fdf4; /* a hovered row, the live slider value box */
-  --zoo-green-border: #86efac;
-  --zoo-green-bar: #22c55e; /* the bar on the left of the selected row */
-  --zoo-handle-shadow: 0 1px 4px rgba(15, 23, 42, .35);
+  /* the green accent (model-db: --accent / --accent-dim) */
+  --zoo-green-text: #2f6f4e; /* emphasised text, the detector pill, the live slider value */
+  --zoo-green-handle: #2f6f4e; /* the slider handle */
+  --zoo-green-bg: #d9e8df; /* the selected row, the detector pill */
+  --zoo-green-bg-soft: #e8f0ea; /* a hovered row, the live slider value box */
+  --zoo-green-border: #b9d4c3;
+  --zoo-green-bar: #2f6f4e; /* the bar on the left of the selected row */
+  --zoo-handle-shadow: 0 1px 4px rgba(20, 20, 17, .35);
   --zoo-green-brand: #2fb44a; /* the green disc of the InsectAI icon: the title's "InsectAI" matches it */
+
+  /* Gradio's own colours, so its blocks, inputs and the Detect button follow the same palette */
+  --body-background-fill: #fdfdfb;
+  --background-fill-primary: #fdfdfb;
+  --background-fill-secondary: #f4f4f0;
+  --block-background-fill: #f8f8f4;
+  --block-radius: 16px; /* all cards rounder, except the image viewers (pinned in ui.css) */
+  --block-border-width: 1px; /* Soft leaves its cards borderless: a thin one, like the model lists */
+  --block-border-color: #dcdcd4;
+  --border-color-primary: #dcdcd4;
+  --body-text-color: #1a1a17;
+  --body-text-color-subdued: #5c5c55;
+  --input-background-fill: #ffffff;
+  --input-border-color: #dcdcd4;
+  --input-radius: 12px; /* the closed model field and the text inputs, rounder like the cards */
+  /* the Detect button: the same green as the logo disc and the title's "InsectAI" */
+  --button-primary-background-fill: #2fb44a;
+  --button-primary-background-fill-hover: #29a042;
+  --button-primary-text-color: #ffffff;
 }
 
-/* dark mode (the moon button): the same variables, re-tuned for Gradio's dark palette. The tag pills
-   keep their light colours on purpose: they are self-contained chips, readable either way. */
-body.dark {
-  --zoo-page-bg: #1f2937;
-  --zoo-list-border: #374151;
+/* dark mode (the moon button): the same variables, re-tuned with model-db's dark palette. The tag pills
+   keep their light colours on purpose: they are self-contained chips, readable either way. Gradio's own
+   dark values live under ":root .dark" - re-declared on the same selectors so these win the cascade. */
+body.dark,
+:root.dark,
+:root .dark {
+  --zoo-page-bg: #1f2227; /* cards: slightly lighter than the page */
+  --zoo-list-border: #34383f;
   --zoo-list-shadow: 0 12px 28px rgba(0, 0, 0, .5);
-  --zoo-divider: #374151;
-  --zoo-text-dim: #9ca3af;
-  --zoo-green-text: #4ade80;
-  --zoo-green-bg-soft: #14532d;
-  --zoo-green-bg: #166534;
-  --zoo-green-border: #15803d;
+  --zoo-divider: #2a2e34;
+  --zoo-text-dim: #b0b0a8;
+
+  --zoo-green-text: #7fc4a0;
+  --zoo-green-handle: #7fc4a0;
+  --zoo-green-bg: #294233;
+  --zoo-green-bg-soft: #22322a;
+  --zoo-green-border: #3a5a48;
   --zoo-handle-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+
+  --body-background-fill: #16171a;
+  --background-fill-primary: #16171a;
+  --background-fill-secondary: #24272c;
+  --block-background-fill: #141517;
+  --block-radius: 16px;
+  --block-border-width: 1px;
+  --block-border-color: #34383f;
+  --border-color-primary: #34383f;
+  --body-text-color: #e9e9e4;
+  --body-text-color-subdued: #b0b0a8;
+  --input-background-fill: #24272c;
+  --input-border-color: #34383f;
+  --input-radius: 12px;
+  --button-primary-background-fill: #2fb44a;
+  --button-primary-background-fill-hover: #29a042;
+  --button-primary-text-color: #ffffff;
 }
 
 /* the tag pills: each model type picks its own colours, used by .zoo-pill in ui.css */
@@ -98,7 +141,7 @@ body.dark {
   color: var(--zoo-green-brand) !important;
 }
 
-/* the COST svg is white artwork: flipped to black on the light tile; in dark the tile is dark, so the
+/* the COST svg is white artwork: flipped to black on the light page; in dark the page is dark, so the
    white wordmark shows as it comes */
 .zoo-logo-cost {
   filter: invert(1);

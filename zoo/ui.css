@@ -3,18 +3,25 @@
   max-height: 320px !important; /* long model lists scroll */
 }
 
-/* the open model list: one box, one row per model with a line between models */
-ul.option-list {
-  padding: 6px !important;
+/* the open model list: one box, one row per model with a line between models. The box is the .options
+   popup AROUND the list, not the list itself: the popup clips its children (overflow: hidden), so a
+   border or shadow on the list would be cut off - and the popup's own square corners, with its page
+   colour, would show behind the rounded list */
+.options {
   background: var(--zoo-page-bg) !important;
   border: 1px solid var(--zoo-list-border) !important;
-  border-radius: 12px !important;
+  border-radius: 16px !important;
   box-shadow: var(--zoo-list-shadow) !important;
+}
+
+ul.option-list {
+  padding: 6px !important;
+  background: transparent !important;
 }
 
 ul.option-list li[role="option"] {
   padding: 10px 12px !important;
-  border-radius: 8px;
+  border-radius: 12px;
   position: relative;
 }
 
@@ -99,7 +106,8 @@ li[role="option"]:has(> .zoo-pills),
   text-align: center;
 }
 
-/* confidence sliders: an oval (pill) track with a round green handle; the value box on the right updates live */
+/* confidence sliders: an oval (pill) track with a round handle the same green as the track's filled part
+   (--slider-color: it flips with the theme on its own); the value box on the right updates live */
 .zoo-slider input[type="range"] {
   height: 10px;
   border-radius: 999px;
@@ -111,7 +119,7 @@ li[role="option"]:has(> .zoo-pills),
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--zoo-green-handle);
+  background: var(--slider-color);
   border: 2px solid var(--zoo-page-bg);
   box-shadow: var(--zoo-handle-shadow);
 }
@@ -121,10 +129,27 @@ li[role="option"]:has(> .zoo-pills),
   height: 20px;
   border: 2px solid var(--zoo-page-bg);
   border-radius: 50%;
-  background: var(--zoo-green-handle);
+  background: var(--slider-color);
 }
 
-/* the live value: a rounded green chip */
+/* the model fields' text sits a little further from the field's border - padding inside the input, so
+   the field itself does not grow */
+input[role="combobox"] {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+/* the live value: a rounded green chip. The square 1px frame around it (the .tab-like-container the
+   input and its reset button sit in) goes - the pill is the input itself */
+.zoo-slider .tab-like-container {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.zoo-slider .reset-button {
+  border-left: none !important;
+}
+
 .zoo-slider input[type="number"] {
   font-weight: 700;
   color: var(--zoo-green-text);
@@ -256,17 +281,6 @@ body.dark .zoo-theme-btn svg * {
   font-weight: 600;
 }
 
-/* one small rounded tile per footer logo: the page's own background in light mode, a dark card in dark */
-.zoo-tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--zoo-page-bg);
-  border-radius: 12px;
-  padding: 12px 18px;
-  line-height: 0;
-}
-
 /* the footer: the three logos, centred, stuck to the bottom of the window. The whole chain above it
    must stretch for that (Gradio's app container and .contain do not grow by themselves), and the
    footer block then takes the rest of the page as margin above it: the gap between the Detect button
@@ -296,21 +310,40 @@ main.contain > .column {
 }
 
 .zoo-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 48px;
-  padding: 10px 0 2px;
+  column-gap: 44px;
+  padding: 10px 0 10px;
+  line-height: 0;
 }
 
-.zoo-footer .zoo-logo,
+/* the side columns are equally wide, so the InsectAI logo sits exactly in the middle of the page, with
+   COST hugging it from the left and the EU emblem from the right */
+.zoo-footer > :first-child {
+  justify-self: end;
+}
+
+.zoo-footer > :last-child {
+  justify-self: start;
+}
+
+.zoo-footer .zoo-logo {
+  height: 64px;
+}
+
 .zoo-footer .zoo-cost-logo {
-  height: 56px;
+  height: 52px;
+}
+
+.zoo-footer .zoo-eu-logo {
+  height: 44px;
 }
 
 /* the image previews: tall on a big window, but capped by the window's height so the page (now with the
-   footer's logos at the bottom) never grows taller than the screen. The -55px makes room for the footer;
+   footer at the bottom) never grows taller than the screen. The -55px makes room for the footer;
    side panels - vertical tabs, devtools - take width away, not height */
 .zoo-image {
   height: clamp(200px, calc(38vh - 72px), 440px) !important;
+  border-radius: 6px !important; /* the viewers keep a small radius: only the other cards round over */
 }

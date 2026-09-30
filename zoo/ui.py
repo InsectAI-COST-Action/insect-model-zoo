@@ -26,6 +26,13 @@ NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Your own Latin names, e.g. Apis mellifera, Bombus terrestris  (empty = %s)"
+CLASSIFY = "Classify"
+
+
+def button_text(detector_on, classifier_on):
+    """The button says what it will do: Detect, Classify, or Detect + Classify. With no model picked at
+    all it falls back to Detect (the button is then not clickable)."""
+    return " + ".join(w for w, on in ((DETECT, detector_on), (CLASSIFY, classifier_on)) if on) or DETECT
 def _page_css(name):
     """One of the page's style files, from next to this module: theme.css (colours, font sizes) or ui.css
     (layout, shapes)."""
@@ -52,9 +59,11 @@ PAGE_JS = """() => {
   const ruler = document.createElement('canvas').getContext('2d');
   const fit = (inp, tagged) => {           // closed field: text box only as wide as the name, pills right after it
     if (!tagged || document.activeElement === inp) { inp.style.flex = ''; inp.style.width = ''; return; }
-    ruler.font = getComputedStyle(inp).font;
+    const style = getComputedStyle(inp);                 // the padding pushes the text away from the
+    const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) || 0;
+    ruler.font = style.font;
     inp.style.flex = '0 0 auto';
-    inp.style.width = Math.ceil(ruler.measureText(inp.value).width + 4) + 'px';
+    inp.style.width = Math.ceil(ruler.measureText(inp.value).width + pad + 4) + 'px';
   };
   const textWidth = (el, text) => { ruler.font = getComputedStyle(el).font; return ruler.measureText(text).width; };
   const pillsWidth = box => [...box.children].reduce((w, p) => w + p.getBoundingClientRect().width + 4, 0);
@@ -79,6 +88,17 @@ PAGE_JS = """() => {
       if (!wrap.dataset.zooClick) {        // a click anywhere in the field still opens the list
         wrap.dataset.zooClick = '1';
         wrap.addEventListener('click', e => { if (e.target !== inp) inp.focus(); });
+      }
+      if (!wrap.dataset.zooFocus) {        // while the field is being edited (typing, or the open list),
+        wrap.dataset.zooFocus = '1';       // its pills step aside, so its height never changes
+        inp.addEventListener('focus', () => {
+          const box = wrap.querySelector(':scope > .zoo-pills');
+          if (box) box.style.display = 'none';
+        });
+        inp.addEventListener('blur', () => {
+          const box = wrap.querySelector(':scope > .zoo-pills');
+          if (box) box.style.display = '';
+        });
       }
     });
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
@@ -151,18 +171,16 @@ def header_html():
 
 
 def footer_html():
-    """The three logos at the bottom of the page: one small rounded tile each, equidistant."""
+    """The three logos at the bottom of the page: COST left of the InsectAI logo, the EU one right of it."""
     insectai = _data_uri("logo_insectai.svg", "image/svg+xml")
     cost = _data_uri("logo_cost.svg", "image/svg+xml")
     eu = _data_uri("logo_eu.svg", "image/svg+xml")
     return """
 <div class="zoo-footer">
-  <a href="https://insectai.eu/" target="_blank" class="zoo-tile">
-    <img src="{insectai}" alt="InsectAI" class="zoo-logo"></a>
-  <a href="https://www.cost.eu/actions/CA22129/" target="_blank" class="zoo-tile">
+  <a href="https://www.cost.eu/actions/CA22129/" target="_blank">
     <img src="{cost}" alt="COST" class="zoo-cost-logo zoo-logo-cost"></a>
-  <div class="zoo-tile">
-    <img src="{eu}" alt="Funded by the European Union" class="zoo-cost-logo"></div>
+  <a href="https://insectai.eu/" target="_blank"><img src="{insectai}" alt="InsectAI" class="zoo-logo"></a>
+  <div><img src="{eu}" alt="Funded by the European Union" class="zoo-eu-logo"></div>
 </div>""".format(insectai=insectai, cost=cost, eu=eu)
 
 
@@ -237,15 +255,18 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
     # handlers read the family dropdowns, not the size buttons (those may still be switching to the new family)
     def on_det_family(group, cls_group):
-        # outputs: det_sizes, cls_family, gated_md, thr (the detection-confidence slider), text (the prompt box)
+        # outputs: det_sizes, cls_family, gated_md, thr (the detection-confidence slider), text, run_btn
         if group == NONE:                                    # "whole image": no detector, classifier only
             new_cls = cls_group if cls_group != NONE else next(iter(groups(CLASSIFIERS)))   # need a classifier
             return (gr.update(choices=[], value=None, visible=False), gr.update(value=new_cls),
-                    gated_note(cls_of(new_cls)), gr.update(visible=False), gr.update(visible=False))
+                    gated_note(cls_of(new_cls)), gr.update(visible=False), gr.update(visible=False),
+                    gr.update(value=button_text(False, True), interactive=True))
         card = group_default(group, MODELS)
         pair = get_classifier("auto", card)                  # a detector family's own classifier, or none
-        return (sizes(group, MODELS, card), gr.update(value=group_of(pair) if pair else NONE),
-                gated_note(card, cls_of(cls_group)), gr.update(visible=True), gr.update(visible=True))
+        new_cls = group_of(pair) if pair else NONE            # the button follows the NEW classifier, which
+        return (sizes(group, MODELS, card), gr.update(value=new_cls),  # this handler may just have changed
+                gated_note(card, cls_of(cls_group)), gr.update(visible=True), gr.update(visible=True),
+                gr.update(value=button_text(True, new_cls != NONE), interactive=True))
 
     def on_det_version(name):
         if not name:                                         # whole-image mode: no detector picked
@@ -255,19 +276,21 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                 gr.update(interactive=card.text_prompt, placeholder=placeholder(card)))
 
     def on_cls_family(group, det_group):
-        # outputs: cls_sizes, classes_box, gated_md, cls_thr (the classification-confidence slider)
+        # outputs: cls_sizes, classes_box, gated_md, cls_thr (the classification-confidence slider), run_btn
         detector = None if det_group == NONE else group_default(det_group, MODELS)
-        if group == NONE:
+        if group == NONE:                                    # no classifier: Detect only - or nothing to run
             return (gr.update(choices=[], value=None, visible=False), gr.update(visible=False),
-                    gated_note(detector), gr.update(visible=False))
+                    gated_note(detector), gr.update(visible=False),
+                    gr.update(value=button_text(det_group != NONE, False), interactive=det_group != NONE))
         card = group_default(group, CLASSIFIERS)
         return (sizes(group, CLASSIFIERS, card), gr.update(visible=bool(card.classes)),
-                gated_note(detector, card), cls_slider(card, visible=True))
+                gated_note(detector, card), cls_slider(card, visible=True),
+                gr.update(value=button_text(det_group != NONE, True), interactive=True))
 
     def run(det_name, cls_name, det_thr, cls_thr, text, classes_text, image_path):
         """The Detect button itself shows what is going on (download MB, loading, running) until the result is in.
         With no detector (det_name empty) the whole image is one box and only the classifier runs."""
-        ready = gr.update(value=DETECT, interactive=True)
+        ready = gr.update(value=button_text(bool(det_name), bool(cls_name)), interactive=True)
         if not image_path:
             yield gr.update(), ready
             raise gr.Error("Add an image first.")
@@ -396,12 +419,14 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         classes_box = gr.Textbox(show_label=False, value=classes or "", max_lines=1,
                                  placeholder=CLASSES_HINT % bioclip_empty_text(),
                                  visible=bool(first_cls and first_cls.classes))
-        run_btn = gr.Button(DETECT, variant="primary")
+        run_btn = gr.Button(button_text(first_group != NONE, first_cls_group != NONE), variant="primary")
         gr.HTML(footer_html(), elem_classes="zoo-footer-block")
 
-        det_family.change(on_det_family, [det_family, cls_family], [det_sizes, cls_family, gated_md, thr, text])
+        det_family.change(on_det_family, [det_family, cls_family],
+                          [det_sizes, cls_family, gated_md, thr, text, run_btn])
         det_sizes.change(on_det_version, det_sizes, [thr, text])
-        cls_family.change(on_cls_family, [cls_family, det_family], [cls_sizes, classes_box, gated_md, cls_thr])
+        cls_family.change(on_cls_family, [cls_family, det_family],
+                          [cls_sizes, classes_box, gated_md, cls_thr, run_btn])
         inputs = [det_sizes, cls_sizes, thr, cls_thr, text, classes_box, image_in]
         run_btn.click(run, inputs, [image_out, run_btn], show_progress="hidden")
         text.submit(run, inputs, [image_out, run_btn], show_progress="hidden")
