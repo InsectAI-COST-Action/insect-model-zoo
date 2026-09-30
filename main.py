@@ -247,7 +247,10 @@ def main(argv=None):
                     sys.exit("\n" + str(e) + "\n")
                 print("%s -> skipped: GATED, needs access + a Hugging Face token (%s)" % (c.name, GATED_GUIDE_URL))
         return
-    if not argv or args.ui:
+    cli_only = (args.list_models, args.check, args.download, args.model, args.classifier, args.threshold,
+                args.iou, args.prompt, args.classes, args.input_image, args.input_folder, args.output_dir,
+                args.device)
+    if args.ui or not any(cli_only):      # UI options only (--ui, --port) still mean "open the web UI"
         from zoo.ui import launch
         launch(model=card.name, classifier=args.classifier or CLASSIFIER, device=args.device or DEVICE,
                threshold=check_range("threshold", args.threshold if args.threshold is not None else THRESHOLD),

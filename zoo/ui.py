@@ -99,7 +99,6 @@ PAGE_JS = """() => {
     return !!box && nameWidth + 8 + pillsWidth(box) > row.clientWidth - reserve;
   };
   const decorate = () => {
-    document.body.classList.remove('dark');
     document.querySelectorAll('ul.option-list').forEach(list => {
       const items = [...list.querySelectorAll('li[role=option]')];
       items.forEach(li => put(li, null, li.getAttribute('aria-label')));
@@ -119,6 +118,16 @@ PAGE_JS = """() => {
     const stacked = fields.some(inp => tooWide(inp.parentElement, textWidth(inp, inp.value), 72));  // 72: arrow room
     fields.forEach(inp => inp.parentElement.classList.toggle('zoo-stacked', stacked));
   };
+  // The page is always light (the CSS hard-codes light colours): take Gradio's 'dark' body class off.
+  // Guarded: classList.remove() of a token that is not there still queues an attribute mutation record
+  // once the class attribute exists, and this page observes class changes - an unguarded remove() here
+  // would make the observer fire forever, freezing the tab (Firefox and Chromium, dark mode).
+  const undark = () => {
+    if (document.body.classList.contains('dark'))
+      document.body.classList.remove('dark');
+  };
+  undark();
+  new MutationObserver(undark).observe(document.body, {attributes: true, attributeFilter: ['class']});
   new MutationObserver(decorate).observe(document.body, {childList: true, subtree: true, attributes: true,
                                                          attributeFilter: ['class']});
   setInterval(decorate, 300);            // the selected value changes without a DOM change
