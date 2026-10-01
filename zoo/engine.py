@@ -21,12 +21,14 @@ class _Loaded:
 class Zoo:
     """Keeps one detector and one classifier loaded, so switching models in the UI does not fill up GPU memory."""
 
-    def __init__(self, device="auto", log=print):
+    def __init__(self, device="auto", log=print, status=None):
         self.hw = hardware.probe()
         self.requested_device = device
         self.log = log
+        self.status = status or (lambda msg: None)      # short "what is happening now" text (the UI's button)
         self.detector = _Loaded("detector")
         self.classifier = _Loaded("classifier")
+        self.cpu_only = set()       # models that failed on the GPU: straight to the CPU until the app restarts
 
     # the detector is "the model" for code that only cares about detection
     card = property(lambda self: self.detector.card)
@@ -45,8 +47,13 @@ class Zoo:
 
     def _load(self, slot, card, progress=None, device=None):
         seen = len(self.hw.notes)
+        if slot.card is not None and slot.card is not card:
+            self._unload(slot)              # the model this one replaces goes first, so the memory check below sees
+                                            # what is really free (not: BioCLIP 2 still loaded -> BioCLIP 2.5 to CPU)
         hardware.refresh(self.hw)                                   # free GPU memory changes as models load
         device = device or hardware.pick_device(self.requested_device, self.hw)
+        if card.name in self.cpu_only:
+            device = "cpu"
         device, warnings = hardware.check_model(card, device, self.hw)
         for w in self.hw.notes[seen:] + warnings:
             self.log("WARNING: " + w)
@@ -55,6 +62,7 @@ class Zoo:
 
         path = ensure_weights(card, progress)
         self._unload(slot)
+        self.status("Loading %s on %s" % (display_name(card), _where(device)))
         self.log("Loading %s %s on %s" % (slot.kind, display_name(card), hardware.describe_device(device, self.hw)))
         family = importlib.import_module("zoo.families." + card.family)
         build = family.Classifier if slot.kind == "classifier" else family.Model
@@ -63,10 +71,18 @@ class Zoo:
         except Exception as e:
             if device == "cpu":
                 raise
-            self.log("WARNING: could not load %s on %s (%s) -> trying CPU." % (card.name, device, _short(e)))
+            sticky = _is_gpu_error(e)               # a damaged file, say, is not the GPU's fault: next time, GPU again
+            self.log("WARNING: %s could not be loaded on the GPU (%s), so it runs on the CPU instead (slower)%s."
+                     % (display_name(card), _short(e), " until the app is restarted" if sticky else ""))
+            self.status("%s did not load on the GPU, loading it on the CPU instead" % display_name(card))
+            if sticky:
+                self.cpu_only.add(card.name)
+            self._unload(slot)                      # free what the failed GPU attempt took
             device = "cpu"
             slot.model = build(card, path, device)
         slot.card, slot.device = card, device
+        if hasattr(slot.model, "status"):          # models with slow first-use steps say so (e.g. BioCLIP's table)
+            slot.model.status = lambda msg: self.status(msg)
         return slot.model
 
     def _unload(self, slot):
@@ -91,7 +107,10 @@ class Zoo:
             if slot.device == "cpu" or not _is_gpu_error(e):
                 raise
             card = slot.card
-            self.log("WARNING: %s failed on %s (%s) -> retrying on CPU." % (card.name, slot.device, _short(e)))
+            self.log("WARNING: %s failed on the GPU (%s), so it runs on the CPU instead (slower) until the app "
+                     "is restarted." % (display_name(card), _short(e)))
+            self.cpu_only.add(card.name)
+            self.status("%s failed on the GPU, retrying on the CPU" % display_name(card))
             self._unload(slot)
             self._load(slot, card, device="cpu")
             return run(slot.model)
@@ -99,6 +118,7 @@ class Zoo:
     def predict(self, image_rgb, threshold, iou, prompt=None):
         """Detect. `prompt` is the text prompt for models that take one (card.text_prompt), ignored otherwise."""
         prompt = ((prompt or "").strip() or None) if self.card.text_prompt else None
+        self.status("Finding insects with %s on %s" % (display_name(self.card), _where(self.device)))
         t = time.time()
         dets = self._on_cpu_if_gpu_fails(self.detector, lambda m: m.predict(image_rgb, threshold, iou, prompt))
         h, w = image_rgb.shape[:2]
@@ -121,8 +141,12 @@ class Zoo:
     def run_file(self, path, threshold, iou, out_dir, prompt=None, classes=None, cls_threshold=None):
         image = results.load_image(path)
         dets, secs = self.predict(image, threshold, iou, prompt)
+        if self.classifier.model is not None and dets:
+            self.status("Naming %d insect%s with %s" % (len(dets), "" if len(dets) == 1 else "s",
+                                                       display_name(self.classifier.card)))
         secs += self.classify(image, dets, classes)
         _apply_taxon_threshold(dets, cls_threshold)
+        self.status("Saving results")
         meta = {"config": {"threshold": threshold, "iou": iou, "prompt": prompt, "classes": classes,
                            "cls_threshold": cls_threshold}, "device": self.device}
         files = results.save(path, image, dets, out_dir, self.card.name,
@@ -134,9 +158,11 @@ class Zoo:
         image = results.load_image(path)
         h, w = image.shape[:2]
         dets = [results.Detection(0.0, 0.0, float(w - 1), float(h - 1), None, "")]   # no detector: no score
+        self.status("Classifying the whole image with %s" % display_name(self.classifier.card))
         secs = self.classify(image, dets, classes)
         _apply_taxon_threshold(dets, cls_threshold)
         name = self.classifier.card.name if self.classifier.card else ""
+        self.status("Saving results")
         meta = {"config": {"classes": classes, "cls_threshold": cls_threshold}, "device": self.classifier.device}
         files = results.save(path, image, dets, out_dir, "whole-image", name, meta)
         return image, dets, secs, files
@@ -159,6 +185,11 @@ def _apply_taxon_threshold(dets, cls_threshold):
 def _is_gpu_error(e):
     text = "%s %s" % (type(e).__name__, e)
     return any(k in text for k in ("OutOfMemory", "out of memory", "CUDA", "cuda", "MPS", "mps", "cuDNN"))
+
+
+def _where(device):
+    """'cuda:0' -> 'GPU', 'mps' -> 'Apple GPU', 'cpu' -> 'CPU' (for the short status text)."""
+    return "GPU" if device.startswith("cuda") else "Apple GPU" if device == "mps" else "CPU"
 
 
 def _short(e):

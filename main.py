@@ -61,6 +61,7 @@ from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.environ.setdefault("YOLO_AUTOINSTALL", "false")      # never let Ultralytics pip-install packages while running
+os.environ.setdefault("YOLO_OFFLINE", "true")           # no Ultralytics usage statistics or update checks either
 if WEIGHTS_DIR:                                            # read by zoo/weights.py (as INSECT_ZOO_WEIGHTS)
     os.environ["INSECT_ZOO_WEIGHTS"] = os.path.abspath(WEIGHTS_DIR)
 if HF_TOKEN.strip():
@@ -69,6 +70,31 @@ if HF_TOKEN.strip():
           "Move it: run `hf auth login` (or put it in hf_token.txt, which git ignores), then set HF_TOKEN = \"\" "
           "again. See docs/GATED_MODELS.md.")
 
+
+
+def use_own_venv():
+    """Started with another Python than the zoo's .venv (e.g. `python main.py` in a new terminal where .venv is not
+    activated)? Then run again with the .venv's Python: another Python on the computer can have older packages (an old
+    flat-bug there fails with 'Unknown hyperparameter'). INSECT_ZOO_ANY_PYTHON=1 turns this off."""
+    venv = os.path.join(HERE, ".venv")
+    exe = os.path.join(venv, "Scripts", "python.exe") if os.name == "nt" else os.path.join(venv, "bin", "python")
+    if os.environ.get("INSECT_ZOO_ANY_PYTHON") or not os.path.isfile(exe):
+        return
+    if os.path.normcase(os.path.realpath(sys.prefix)) == os.path.normcase(os.path.realpath(venv)):
+        return
+    print("NOTE: started with %s, not with the zoo's own .venv: running with %s instead (activate .venv first to "
+          "skip this step)." % (sys.executable, exe), flush=True)
+    import subprocess
+    proc = subprocess.Popen([exe, os.path.abspath(sys.argv[0])] + sys.argv[1:])
+    while True:
+        try:
+            sys.exit(proc.wait())
+        except KeyboardInterrupt:           # Ctrl+C reaches the zoo itself too: wait until it has stopped
+            continue
+
+
+if __name__ == "__main__":
+    use_own_venv()
 if sys.version_info < (3, 11):
     sys.exit("Python 3.11 or newer is needed (you have %s). See README 'Prerequisites'." % sys.version.split()[0])
 if os.name == "nt" and len(HERE) > 140:
@@ -313,6 +339,7 @@ def main(argv=None):
                 cards = [MODELS.get(name) or CLASSIFIERS.get(name) or get_model(name)]
             except KeyError as e:
                 sys.exit(e.args[0])
+        failed = []
         for c in cards:
             try:
                 print("%s -> %s" % (c.name, ensure_weights(c)))
@@ -320,6 +347,14 @@ def main(argv=None):
                 if len(cards) == 1:
                     sys.exit("\n" + str(e) + "\n")
                 print("%s -> skipped: GATED, needs access + a Hugging Face token (%s)" % (c.name, GATED_GUIDE_URL))
+            except (RuntimeError, OSError) as e:    # download failed, disk full, ...: say so, go on with the next
+                if len(cards) == 1:
+                    sys.exit("\n" + str(e) + "\n")
+                print("%s -> FAILED: %s" % (c.name, str(e).strip().splitlines()[0]))
+                failed.append(c.name)
+        if failed:
+            sys.exit("\nNot downloaded: %s. Run `python main.py --download NAME` for one of them to see the details."
+                     % ", ".join(failed))
         return
     cli_only = (args.list_models, args.check, args.download, args.model, args.classifier, args.threshold,
                 args.cls_threshold, args.iou, args.prompt, args.classes, args.input_image, args.input_folder,

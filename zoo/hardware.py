@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 
 GB = 1024 ** 3
@@ -88,7 +89,43 @@ def probe():
 
     mps = getattr(torch.backends, "mps", None)
     hw.mps = bool(mps and mps.is_available())
+    problems = requirement_problems()
+    if problems:
+        hw.notes.append("This Python (%s) does not have the package versions the zoo needs: %s. Run the zoo with its "
+                        "own .venv (README 'Installation'), or update this one: python -m pip install -r "
+                        "requirements.txt" % (sys.executable, "; ".join(problems)))
     return hw
+
+
+def requirement_problems():
+    """Packages from requirements.txt that are missing or have a version the zoo does not support in THIS Python,
+    e.g. when the zoo is started with another Python than its .venv (an old flat-bug there fails with 'Unknown
+    hyperparameter', an old transformers breaks Grounding DINO, ...)."""
+    import importlib.metadata as metadata
+    try:
+        from packaging.requirements import Requirement
+    except ImportError:                     # packaging comes with pip and most packages; without it, no check
+        return []
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "requirements.txt"),
+                  encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    problems = []
+    for line in lines:
+        try:
+            req = Requirement(line.split("#")[0].strip())
+        except Exception:                   # empty line, comment
+            continue
+        try:
+            have = metadata.version(req.name)
+        except metadata.PackageNotFoundError:
+            problems.append("%s is missing" % req.name)
+            continue
+        if req.specifier and not req.specifier.contains(have, prereleases=True):
+            problems.append("%s %s is installed, the zoo needs %s" % (req.name, have, req.specifier))
+    return problems
 
 
 def refresh(hw):

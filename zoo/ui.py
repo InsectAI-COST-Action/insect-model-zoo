@@ -7,10 +7,13 @@ Models with several sizes show up once in the lists (e.g. "flat-bug"); picking o
 import base64
 import os
 import threading
+import time
+import traceback
 from collections import Counter
 
+from .console import nonblocking
 from .engine import Zoo
-from .registry import (BENCHMARK_DB, CLASSIFIERS, GATED_GUIDE_URL, MODELS, MODEL_DB, SPECIES_TABLE_SURE,
+from .registry import (BENCHMARK_DB, CLASSIFIERS, GATED_GUIDE_URL, MB, MODELS, MODEL_DB, SPECIES_TABLE_SURE,
                        bioclip_empty_text, model_db_url,
                        get_classifier, get_model,
                        display_name, download_size, group_default, group_of, groups, clean_latin_names,
@@ -21,12 +24,40 @@ os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")    # no usage statist
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DETECT = "Detect"
-STARTING = "Starting ... (please wait)"
+STARTING = "Starting ..."
 NONE = "none"
 PROMPT_LOCKED = "Text prompt (not used by this detector)"
 PROMPT_OPEN = "What to look for, e.g. bee  or  bee, butterfly  (empty = %s)"
 CLASSES_HINT = "Your own Latin names, e.g. Apis mellifera, Bombus terrestris  (empty = %s)"
 CLASSIFY = "Classify"
+SLOW_LOAD = 60                  # seconds: loading a model longer than this gets a "slower than usual" note
+LOAD_STALL = 120                # seconds a model load may go without ANY work (CPU, disk, memory growth) before the
+                                # app stops waiting for it; a load that is slow but working is never cut off
+
+
+def _work_done():
+    """CPU seconds used, bytes read and memory in use by this process so far. A model that is loading moves at least
+    one of them (decoding the weights, reading the file, or - for weights read through a memory map, and for
+    everything on macOS, which has no read counter - memory growth); a stuck load moves none."""
+    import psutil
+    proc = psutil.Process()
+    cpu = sum(proc.cpu_times()[:2])                 # user + system
+    try:
+        read = proc.io_counters().read_bytes
+    except (AttributeError, psutil.Error):          # macOS has no io_counters
+        read = 0
+    return cpu, read, proc.memory_info().rss
+
+
+def _explained(error):
+    """Errors whose message is already written for people (weights folder, disk space, download): shown as they
+    are, without a traceback."""
+    return isinstance(error, RuntimeError) and str(error).startswith(
+        ("Could not download", "Not enough free disk space", "The weights folder"))
+
+
+def _duration(secs):
+    return "%d min" % (secs // 60) if secs >= 120 else "%d s" % secs
 
 
 def button_text(detector_on, classifier_on):
@@ -261,6 +292,9 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
     import gradio as gr
 
     zoo = Zoo(device)
+    zoo_lock = threading.Lock()         # one run at a time uses the models (also a run whose tab was closed, or a stuck
+                                        # load: a thread cannot be stopped, so the next run waits for it)
+    current = {"worker": None}          # the thread of the latest run: only it may change the button and the popups
     first = get_model(model)
     first_cls = get_classifier(classifier, first)
     for note in zoo.hw.notes:          # e.g. "NVIDIA GPU found but the CPU-only PyTorch is installed"
@@ -338,42 +372,60 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
         ready = gr.update(value=button_text(bool(det_name), bool(cls_name)), interactive=True)
         if not image_path:
             yield gr.update(), ready, gr.update()
-            raise gr.Error("Add an image first.")
+            raise gr.Error("Add an image first.", print_exception=False)
         card = get_model(det_name) if det_name else None
         cls = CLASSIFIERS.get(cls_name) if cls_name else None
         if card is None and cls is None:
             yield gr.update(), ready, gr.update()
-            raise gr.Error("Pick a detector, or a classifier to run on the whole image.")
+            raise gr.Error("Pick a detector, or a classifier to run on the whole image.", print_exception=False)
         names = [c.strip() for c in (classes_text or "").split(",") if c.strip()] or None
         problems = []
         if names and cls and cls.classes:
             names, problems = clean_latin_names(names)             # 'apis' -> 'Apis'
         if problems:
             yield gr.update(), ready, gr.update()
-            raise gr.Error(" ".join(problems), title="Check the names")
-        warnings, result = [], {}
+            raise gr.Error(" ".join(problems), title="Check the names", print_exception=False)
+        warnings = []
         what = " + ".join([display_name(card) if card else "whole image"] + ([display_name(cls)] if cls else []))
-        status = {"text": "Loading %s ... (please wait)" % display_name(card or cls)}
+        # what the button shows: the current step, how long it has been going, and a note when it is slow
+        status = {"text": "Starting", "since": time.monotonic(), "load": False, "busy": time.monotonic()}
+        sample = {"t": time.monotonic(), "work": _work_done()}
+
+        def mine():                      # a thread left over from an earlier run must not drive this run's button
+            return threading.current_thread() is current["worker"]
+
+        def step(text):
+            if mine() and text != status["text"]:
+                status.update(text=text, since=time.monotonic(), load=text.startswith("Loading "))
 
         def log(msg):
             print(msg)
-            if msg.startswith("WARNING"):
+            if msg.startswith("WARNING") and mine():
                 warnings.append(msg[len("WARNING: "):])
 
         def progress_for(c):
             def on_download(done, total, msg):
-                status["text"] = ("Downloading %s · %s / %s (please wait)" % (display_name(c), size_text(done),
-                                                                            size_text(total)) if total else msg)
+                if total and mine():         # keep the clock running while the bytes come in
+                    part = msg[msg.rfind(" (file "):] if msg.endswith(")") and " (file " in msg else ""
+                    status["text"] = "Downloading %s%s · %s / %s" % (display_name(c), part, size_text(done),
+                                                                   size_text(total))
+                    status["load"] = False
+                elif not total:              # "waiting for another window", "connection dropped, retrying", ...
+                    step(msg)
             return on_download
 
-        def work():                      # runs in a thread, so the button can be updated meanwhile
+        def work(result):                # runs in a thread, so the button can be updated meanwhile
+            if not zoo_lock.acquire(blocking=False):
+                step("Waiting for the previous run to finish")
+                zoo_lock.acquire()
             try:
                 if card is not None:
+                    if not is_downloaded(card):
+                        step("Downloading %s" % display_name(card))
                     zoo.load(card, progress_for(card))
-                if cls:
-                    status["text"] = "Loading %s ... (please wait)" % display_name(cls)
+                if cls and not is_downloaded(cls):
+                    step("Downloading %s" % display_name(cls))
                 zoo.load_classifier(cls, progress_for(cls) if cls else None)
-                status["text"] = "Running %s ... (please wait)" % what
                 if card is not None:
                     folder = card.name + ("+" + cls.name if cls else "")
                     result["out"] = zoo.run_file(image_path, det_thr, iou if iou is not None else card.default_iou,
@@ -384,30 +436,77 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
                                                           cls_threshold=cls_thr)
             except Exception as e:
                 result["error"] = e
+                if not isinstance(e, GatedModelError):
+                    result["trace"] = traceback.format_exc()
+            finally:
+                zoo_lock.release()
 
-        zoo.log = log
+        def idle():
+            """Seconds the current step has gone without the app doing any work (CPU, disk or memory growth)."""
+            now = time.monotonic()
+            if now - sample["t"] >= 5:
+                counters = _work_done()
+                cpu, read, rss = (new - old for new, old in zip(counters, sample["work"]))
+                if cpu > 0.5 or read > 5 * MB or rss > 5 * MB:      # >10% of a core, >1 MB/s read or new in memory
+                    status["busy"] = now
+                sample.update(t=now, work=counters)
+            return now - max(status["since"], status["busy"])
+
+        def label():
+            secs = time.monotonic() - status["since"]
+            text = status["text"] + (" · %d s" % secs if secs >= 2 else "")
+            if status["load"] and secs >= SLOW_LOAD:
+                quiet = idle()
+                text += (" · slower than usual, still working" if quiet < min(15, LOAD_STALL / 2) else
+                         " · no progress for %d s (stops waiting at %s)" % (quiet, _duration(LOAD_STALL)))
+            elif status["text"].startswith("Waiting for the previous run") and secs >= SLOW_LOAD:
+                text += " · if it never finishes, restart the app"
+            return text + " ..."
+
+        zoo.log, zoo.status = log, step
         for c in (card, cls):
             if c is not None and not is_downloaded(c):
                 print("Downloading %s weights (%s) ..." % (c.name, size_text(download_size(c))))
         yield gr.update(), gr.update(value=STARTING, interactive=False), gr.update()  # before any model loads
-        worker = threading.Thread(target=work, daemon=True)
+        result = {}
+        worker = threading.Thread(target=work, args=(result,), daemon=True)
+        current["worker"] = worker
         worker.start()
         shown = STARTING
         while worker.is_alive():
-            if status["text"] != shown:
-                shown = status["text"]
+            if status["load"] and idle() > LOAD_STALL:
+                # a thread cannot be stopped, and a second copy of the model next to it would only race with it:
+                # the load keeps its place (a new click waits for it), the button comes back with what to do
+                stuck = status["text"][len("Loading "):].split(" on ")[0]
+                print("WARNING: loading %s made no progress for %d s; stopped waiting for it." % (stuck, LOAD_STALL))
+                yield gr.update(value=None), ready, gr.update(value="", visible=False)
+                raise gr.Error("Loading %s made no progress for %s, so the app stopped waiting. It may still finish "
+                               "in the background: click the button again to wait for it. If nothing moves, look at "
+                               "the terminal window for errors and restart the app there (Ctrl+C, then python "
+                               "main.py)." % (stuck, _duration(LOAD_STALL)), title="Model did not load",
+                               duration=None, print_exception=False)
+            if label() != shown:
+                shown = label()
                 yield gr.update(), gr.update(value=shown, interactive=False), gr.update()
             worker.join(0.25)
 
         error = result.get("error")
         if error is not None:
-            yield gr.update(), ready, gr.update()
+            yield gr.update(value=None), ready, gr.update(value="", visible=False)   # no result of other models
+            explained = _explained(error)             # written for people already (download, disk space, ...)
+            print()
+            print(error if explained else result.get("trace") or error)   # the whole story stays in the terminal
             if isinstance(error, GatedModelError):
-                print()
-                print(error)
-                raise gr.Error("A gated model needs access and your Hugging Face token first. "
-                               "Follow the 'How to get access' link under the model lists.")
-            raise gr.Error("%s failed: %s" % (what, error))
+                gated = next((c for c in (card, cls) if c is not None and c.gated), card or cls)
+                reason = str(error).strip().splitlines()[0]
+                raise gr.Error("%s needs access first. %s Click 'How to get access' under the model lists for "
+                               "the steps." % (display_name(gated), reason),
+                               title="%s needs access first" % display_name(gated), duration=None,
+                               print_exception=False)
+            lines = str(error).strip().splitlines() or [type(error).__name__]
+            message = lines[0] if explained else "%s failed: %s" % (what, lines[0])
+            raise gr.Error(message + (" More in the terminal window." if len(lines) > 1 else ""),
+                           title="%s failed" % what, duration=None, print_exception=False)
         _, dets, secs, files = result["out"]
         for w in warnings:
             gr.Warning(w)
@@ -483,8 +582,11 @@ def build(model, device, threshold, iou, output_dir, example_image, prompt=None,
 
 def launch(model, device, threshold, iou, output_dir, example_image, port=None, prompt=None, classifier="auto",
            classes=None):
-    import gradio as gr
+    nonblocking()                       # a paused terminal (a click in it, on Windows) must not pause the models;
+    import gradio as gr                 # first, so the loggers Gradio and Hugging Face set up write through it too
 
+    from .weights import check_network_in_background
+    check_network_in_background()       # a network with dead IPv6 would make every download wait minutes
     demo = build(model, device, threshold, iou, output_dir, example_image, prompt, classifier, classes)
     os.makedirs(output_dir, exist_ok=True)
     _, local_url, _ = demo.queue().launch(

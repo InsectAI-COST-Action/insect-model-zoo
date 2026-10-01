@@ -25,6 +25,7 @@ class Classifier:
         import open_clip
         self.card = card
         self.device = device
+        self.status = lambda msg: None                              # set by the engine: the UI's status text
         self.folder = os.path.dirname(weights_path)
         arch = ARCHITECTURE[card.name]
         precision = "fp16" if device.startswith("cuda") else "fp32"
@@ -44,10 +45,13 @@ class Classifier:
         return self._text[1]
 
     def _species_table(self):
-        from ..registry import BIOCLIP_INSECT_TAXA
+        from ..registry import BIOCLIP_INSECT_TAXA, display_name
         if self._table is None or self._table.insects_only != BIOCLIP_INSECT_TAXA:
             npy, names = (os.path.join(self.folder, f.filename) for f in self.card.species_table)
             self._table = None                                      # free the old one first
+            cache = os.path.join(self.folder, "species_table_%s.npz" % ("insects" if BIOCLIP_INSECT_TAXA else "all"))
+            self.status(("Loading %s's species list" if os.path.isfile(cache) else
+                         "Preparing %s's species list (first use only, can take a minute)") % display_name(self.card))
             self._table = SpeciesTable(npy, names, BIOCLIP_INSECT_TAXA, self.device,
                                        self.model.visual.conv1.weight.dtype)
         return self._table
